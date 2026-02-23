@@ -16,6 +16,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.*;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -48,7 +49,7 @@ public class SecurityConfig {
                                 "/api/auth/login"
                         ).permitAll()
 
-                        // ⭐ NEW: WebSocket endpoints (public for now, will secure later)
+                        // WebSocket endpoints
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/topic/**").permitAll()
                         .requestMatchers("/app/**").permitAll()
@@ -56,7 +57,7 @@ public class SecurityConfig {
                         // Authenticated APIs
                         .requestMatchers("/api/appointments/**").authenticated()
                         .requestMatchers("/api/users/**").authenticated()
-                        .requestMatchers("/api/sessions/**").authenticated() // ⭐ NEW
+                        .requestMatchers("/api/sessions/**").authenticated()
 
                         // Role-based
                         .requestMatchers("/api/doctor/**").hasRole("DOCTOR")
@@ -75,13 +76,42 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        config.setAllowedOrigins(List.of("http://localhost:5173"));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        // Get allowed origins from environment variable
+        String allowedOrigins = System.getenv("ALLOWED_ORIGINS");
+
+        if (allowedOrigins != null && !allowedOrigins.isEmpty()) {
+            // Production: use environment variable
+            List<String> origins = Arrays.asList(allowedOrigins.split(","));
+            config.setAllowedOrigins(origins);
+            System.out.println("CORS: Using origins from env: " + origins);
+        } else {
+            // Development: use localhost
+            config.setAllowedOrigins(List.of("http://localhost:5173"));
+            System.out.println("CORS: Using default localhost");
+        }
+
+        // Allow all standard methods
+        config.setAllowedMethods(Arrays.asList(
+                "GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"
+        ));
+
+        // Allow all headers
         config.setAllowedHeaders(List.of("*"));
+
+        // Allow credentials (cookies, authorization headers)
         config.setAllowCredentials(true);
 
-        UrlBasedCorsConfigurationSource source =
-                new UrlBasedCorsConfigurationSource();
+        // Cache preflight for 1 hour
+        config.setMaxAge(3600L);
+
+        // Expose headers (for JWT token)
+        config.setExposedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Type",
+                "X-Requested-With"
+        ));
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
 
         return source;
