@@ -12,9 +12,19 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // Get allowed origins from environment
+        String allowedOrigins = System.getenv("ALLOWED_ORIGINS");
+
+        String[] origins;
+        if (allowedOrigins != null && !allowedOrigins.isEmpty()) {
+            origins = allowedOrigins.split(",");
+        } else {
+            origins = new String[]{"http://localhost:5173"};
+        }
+
         registry
                 .addEndpoint("/ws")
-                .setAllowedOrigins("http://localhost:5173");
+                .setAllowedOrigins(origins); // ⭐ CHANGED: Dynamic origins
     }
 
     @Override
