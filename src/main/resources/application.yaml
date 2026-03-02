@@ -8,6 +8,18 @@ spring:
       maximum-pool-size: 5
       minimum-idle: 2
 
+  mail:
+    host: smtp-relay.brevo.com
+    port: 587
+    username: abhinavpadige06@gmail.com
+    password: {brevo_smtp_key}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
   jpa:
     hibernate:
       ddl-auto: update
