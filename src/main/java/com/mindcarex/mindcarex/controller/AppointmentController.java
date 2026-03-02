@@ -77,9 +77,9 @@ public class AppointmentController {
             Appointment appt = Appointment.builder()
                     .doctor(doctor)
                     .patient(patient)
-                    .startTime(startTime)
-                    .endTime(endTime)
+                    .scheduledAt(startTime)
                     .status("BOOKED")
+                    .notes(req.get("notes"))
                     .build();
 
             appointmentRepo.save(appt);
@@ -119,8 +119,7 @@ public class AppointmentController {
 
             Map<String, Object> appt = new HashMap<>();
             appt.put("id", a.getId());
-            appt.put("startTime", a.getStartTime());
-            appt.put("endTime", a.getEndTime());
+            appt.put("startTime", a.getScheduledAt());
             appt.put("status", a.getStatus());
 
             // Include session info if exists
@@ -164,10 +163,10 @@ public class AppointmentController {
 
             // Check if user is authorized
             boolean isPatient = "PATIENT".equals(user.getRole()) &&
-                    appointment.getPatient().getUserId().equals(user.getId());
+                    appointment.getPatient().getUser().getId().equals(user.getId());
 
             boolean isDoctor = "DOCTOR".equals(user.getRole()) &&
-                    appointment.getDoctor().getUserId().equals(user.getId());
+                    appointment.getDoctor().getUser().getId().equals(user.getId());
 
             if (!isPatient && !isDoctor) {
                 return ResponseEntity.status(403)

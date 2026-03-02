@@ -26,6 +26,6 @@ public class ChatMessage {
     private String senderRole; // "DOCTOR" or "PATIENT"
     private String message;
 
-    @Indexed(expireAfterSeconds = 86400) // Auto-delete after 24 hours
+    @Indexed(expireAfter = "86400s")
     private Instant timestamp;
 }

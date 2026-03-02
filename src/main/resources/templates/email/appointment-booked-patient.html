@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Appointment Confirmed</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7fa;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 40px auto;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .content {
+            padding: 40px 30px;
+        }
+        .greeting {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .info-box {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        .label {
+            font-weight: 600;
+            color: #495057;
+        }
+        .value {
+            color: #212529;
+        }
+        .button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 14px 32px;
+            text-decoration: none;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-weight: 600;
+            text-align: center;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #6c757d;
+            font-size: 14px;
+        }
+        .icon {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9 11H7M9 15H7M13 11H11M13 15H11M17 11H15M17 15H15M21 8V18C21 19.1046 20.1046 20 19 20H5C3.89543 20 3 19.1046 3 18V8M21 8L12 3L3 8M21 8V6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <h1>Appointment Confirmed! 🎉</h1>
+    </div>
+
+    <div class="content">
+        <p class="greeting">Dear <strong th:text="${patientName}">Patient</strong>,</p>
+
+        <p>Your mental health consultation has been successfully scheduled with <strong th:text="${doctorName}">Doctor</strong>.</p>
+
+        <div class="info-box">
+            <div class="info-row">
+                <span class="label">📅 Date:</span>
+                <span class="value" th:text="${appointmentDate}">March 15, 2024</span>
+            </div>
+            <div class="info-row">
+                <span class="label">⏰ Time:</span>
+                <span class="value" th:text="${appointmentTime}">10:00 AM</span>
+            </div>
+            <div class="info-row">
+                <span class="label">👨‍⚕️ Doctor:</span>
+                <span class="value" th:text="${doctorName}">Dr. Smith</span>
+            </div>
+            <div class="info-row">
+                <span class="label">🏥 Specialization:</span>
+                <span class="value" th:text="${specialization}">Psychiatry</span>
+            </div>
+            <div class="info-row">
+                <span class="label">📝 Appointment ID:</span>
+                <span class="value" th:text="${appointmentId}">12345</span>
+            </div>
+        </div>
+
+        <p><strong>What to expect:</strong></p>
+        <ul>
+            <li>You'll receive a reminder 10 minutes before your session</li>
+            <li>The doctor will start the session at the scheduled time</li>
+            <li>You can join the video consultation from your dashboard</li>
+            <li>Please ensure you have a stable internet connection and a quiet environment</li>
+        </ul>
+
+        <center>
+            <a href="${dashboardUrl}" class="button" th:href="${dashboardUrl}">
+                View My Appointments
+            </a>
+        </center>
+
+        <p style="color: #6c757d; font-size: 14px; margin-top: 30px;">
+            Need to reschedule? Contact us at <a href="mailto:support@mindcarex.com">support@mindcarex.com</a>
+        </p>
+    </div>
+
+    <div class="footer">
+        <p><strong>mindcareX</strong> - Your Mental Health Partner</p>
+        <p>This is an automated message. Please do not reply to this email.</p>
+    </div>
+</div>
+</body>
+</html>

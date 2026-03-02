@@ -1,6 +1,7 @@
 package com.mindcarex.mindcarex.controller;
 
 import com.mindcarex.mindcarex.entity.*;
+import com.mindcarex.mindcarex.service.*;
 import com.mindcarex.mindcarex.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -8,6 +9,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -22,6 +24,7 @@ public class SessionController {
     private final DoctorRepository doctorRepo;
     private final PatientRepository patientRepo;
     private final ChatMessageRepository chatMessageRepo;
+    private final EmailService emailService;
 
     // ✅ START SESSION (Doctor only) - ⭐ UPDATED
     @PostMapping("/{appointmentId}/start")
@@ -35,7 +38,7 @@ public class SessionController {
             return ResponseEntity.status(403).body("Only doctor can start session");
         }
 
-        Doctor doctor = doctorRepo.findByUserId(user.getId())
+        Doctor doctor = doctorRepo.findByUser_Id(user.getId())
                 .orElseThrow(() -> new RuntimeException("Doctor profile missing"));
 
         Appointment appointment = appointmentRepo.findById(appointmentId)
@@ -106,6 +109,7 @@ public class SessionController {
     @PostMapping("/{sessionId}/end")
     public ResponseEntity<?> endSession(
             @PathVariable UUID sessionId,
+            @RequestBody(required = false) Map<String, Object> summaryData,
             Authentication auth
     ) {
         User user = userRepo.findByEmail(auth.getName()).orElseThrow();
@@ -117,7 +121,6 @@ public class SessionController {
         Session session = sessionRepo.findById(sessionId)
                 .orElseThrow(() -> new RuntimeException("Session not found"));
 
-        // ⭐ NEW: Update appointment status to COMPLETED
         Appointment appointment = session.getAppointment();
         appointment.setStatus("COMPLETED");
         appointmentRepo.save(appointment);
@@ -125,6 +128,34 @@ public class SessionController {
         session.setStatus("ENDED");
         session.setEndedAt(OffsetDateTime.now());
         sessionRepo.save(session);
+
+        // ⭐ Send session summary emails
+        if (summaryData != null) {
+            Doctor doctor = appointment.getDoctor();
+            Patient patient = appointment.getPatient();
+            User doctorUser = doctor.getUser();
+            User patientUser = patient.getUser();
+
+            String aiSummary = (String) summaryData.get("aiSummary");
+            List<String> keyPoints = (List<String>) summaryData.get("keyPoints");
+            String recommendations = (String) summaryData.get("recommendations");
+            String nextSteps = (String) summaryData.get("nextSteps");
+
+            // Send to doctor
+            emailService.sendSessionSummary(
+                    session, doctorUser, aiSummary, keyPoints, recommendations, nextSteps
+            );
+
+            // Send to patient
+            emailService.sendSessionSummary(
+                    session, patientUser, aiSummary, keyPoints, recommendations, nextSteps
+            );
+
+            // ⭐ Send to guardian if email exists
+            emailService.sendSessionSummaryToGuardian(
+                    session, patient, aiSummary, keyPoints, recommendations
+            );
+        }
 
         return ResponseEntity.ok("Session ended");
     }

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Session Update</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7fa;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 40px auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 12px 12px 0 0;
+        }
+        .content {
+            padding: 30px;
+        }
+        .summary-box {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #6c757d;
+            font-size: 14px;
+            border-radius: 0 0 12px 12px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Mental Health Session Update</h1>
+    </div>
+
+    <div class="content">
+        <p>Dear <strong th:text="${recipientName}">Guardian</strong>,</p>
+
+        <p>This is an update regarding <strong th:text="${patientName}">Patient</strong>'s mental health consultation session.</p>
+
+        <p style="color: #6c757d; font-size: 14px;">
+            You are receiving this as their emergency contact (<span th:text="${relation}">relation</span>).
+        </p>
+
+        <div class="summary-box">
+            <p><strong>Session Date:</strong> <span th:text="${sessionDate}">Date</span></p>
+            <p><strong>Duration:</strong> <span th:text="${duration}">Duration</span></p>
+        </div>
+
+        <div class="summary-box" th:if="${aiSummary}">
+            <h3 style="margin-top: 0;">Session Summary</h3>
+            <p th:text="${aiSummary}">Summary</p>
+        </div>
+
+        <div class="summary-box" th:if="${recommendations}">
+            <h3 style="margin-top: 0;">Doctor's Recommendations</h3>
+            <p th:text="${recommendations}">Recommendations</p>
+        </div>
+
+        <p style="color: #6c757d; font-size: 14px; margin-top: 30px;">
+            <strong>Privacy Notice:</strong> This information is shared with you as an emergency contact. Please treat it confidentially and discuss with the patient directly if you have concerns.
+        </p>
+    </div>
+
+    <div class="footer">
+        <p><strong>mindcareX</strong> - Mental Health Platform</p>
+        <p>This is an automated notification. Do not reply to this email.</p>
+    </div>
+</div>
+</body>
+</html>

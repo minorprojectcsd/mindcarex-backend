@@ -32,6 +32,10 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    // ⭐ ADD THIS FIELD
+    @Column(nullable = false)
+    private String fullName;
+
     @Column(nullable = false, length = 20)
     private String role; // ADMIN, DOCTOR, PATIENT
 

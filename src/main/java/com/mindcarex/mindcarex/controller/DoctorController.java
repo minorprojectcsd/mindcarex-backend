@@ -32,7 +32,7 @@ public class DoctorController {
             return ResponseEntity.status(403).body("Access denied");
         }
 
-        Doctor doctor = doctorRepo.findByUserId(user.getId())
+        Doctor doctor = doctorRepo.findByUser_Id(user.getId())
                 .orElseThrow(() -> new RuntimeException("Doctor profile missing"));
 
         List<Map<String, Object>> response = new ArrayList<>();
@@ -41,8 +41,7 @@ public class DoctorController {
 
             Map<String, Object> appt = new HashMap<>();
             appt.put("id", a.getId());
-            appt.put("startTime", a.getStartTime());
-            appt.put("endTime", a.getEndTime());
+            appt.put("startTime", a.getScheduledAt());
             appt.put("status", a.getStatus());
 
             // ⭐ NEW: Include session info if exists

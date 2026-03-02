@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Appointment Scheduled</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7fa;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 40px auto;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .content {
+            padding: 40px 30px;
+        }
+        .greeting {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .info-box {
+            background: #f8f9fa;
+            border-left: 4px solid #11998e;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        .label {
+            font-weight: 600;
+            color: #495057;
+        }
+        .value {
+            color: #212529;
+        }
+        .button {
+            display: inline-block;
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 14px 32px;
+            text-decoration: none;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-weight: 600;
+            text-align: center;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #6c757d;
+            font-size: 14px;
+        }
+        .notes-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>New Appointment Scheduled 📋</h1>
+    </div>
+
+    <div class="content">
+        <p class="greeting">Dear Dr. <strong th:text="${doctorName}">Doctor</strong>,</p>
+
+        <p>A new patient has scheduled a consultation with you.</p>
+
+        <div class="info-box">
+            <div class="info-row">
+                <span class="label">👤 Patient:</span>
+                <span class="value" th:text="${patientName}">John Doe</span>
+            </div>
+            <div class="info-row">
+                <span class="label">📅 Date:</span>
+                <span class="value" th:text="${appointmentDate}">March 15, 2024</span>
+            </div>
+            <div class="info-row">
+                <span class="label">⏰ Time:</span>
+                <span class="value" th:text="${appointmentTime}">10:00 AM</span>
+            </div>
+            <div class="info-row">
+                <span class="label">📝 Appointment ID:</span>
+                <span class="value" th:text="${appointmentId}">12345</span>
+            </div>
+        </div>
+
+        <div class="notes-box" th:if="${notes}">
+            <strong>📌 Patient Notes:</strong>
+            <p th:text="${notes}">Patient notes will appear here</p>
+        </div>
+
+        <p><strong>Action Required:</strong></p>
+        <ul>
+            <li>Review patient information in your dashboard</li>
+            <li>You'll receive a reminder 10 minutes before the session</li>
+            <li>Start the video session at the scheduled time</li>
+        </ul>
+
+        <center>
+            <a href="${dashboardUrl}" class="button" th:href="${dashboardUrl}">
+                View Appointments
+            </a>
+        </center>
+    </div>
+
+    <div class="footer">
+        <p><strong>mindcareX</strong> - Professional Mental Health Platform</p>
+        <p>This is an automated message. Please do not reply to this email.</p>
+    </div>
+</div>
+</body>
+</html>
