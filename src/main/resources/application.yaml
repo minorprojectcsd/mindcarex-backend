@@ -9,18 +9,18 @@ spring:
       minimum-idle: 2
 
   mail:
-    host: smtp-relay.brevo.com
-    port: 465
-    username: abhinavpadige06@gmail.com
-    password: ${BREVO_SMTP_KEY}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          ssl:
-            enable: true
-          starttls:
-            enable: false
+    host: ${EMAIL_HOST}
+      port: ${EMAIL_PORT}
+      username: ${EMAIL_USERNAME}
+      password: ${EMAIL_PASSWORD}
+      properties:
+        mail:
+          smtp:
+            auth: true
+            starttls:
+              enable: true
+            ssl:
+              enable: false
 
   jpa:
     hibernate:

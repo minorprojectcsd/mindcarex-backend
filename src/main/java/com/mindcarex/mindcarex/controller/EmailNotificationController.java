@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/notifications")
@@ -16,51 +17,79 @@ import java.util.Map;
 public class EmailNotificationController {
 
     private final EmailService emailService;
+    private final EmailLogRepository emailLogRepository;
 
     /**
      * Get email history for current user
      */
     @GetMapping("/history")
     public ResponseEntity<?> getEmailHistory(Authentication auth) {
-        try {
-            List<EmailLog> history = emailService.getEmailHistory(auth.getName());
-            return ResponseEntity.ok(history);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Error fetching email history");
-        }
+        List<EmailLog> history =
+                emailService.getEmailHistory(auth.getName());
+        return ResponseEntity.ok(history);
     }
 
     /**
-     * Get email statistics (Admin only)
+     * Get email statistics (ADMIN only)
      */
     @GetMapping("/statistics")
     public ResponseEntity<?> getStatistics(Authentication auth) {
-        try {
-            // TODO: Add admin check
-            Map<String, Long> stats = emailService.getEmailStatistics();
-            return ResponseEntity.ok(stats);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Error fetching statistics");
+
+        if (!auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            return ResponseEntity.status(403).body("Access denied");
         }
+
+        return ResponseEntity.ok(emailService.getEmailStatistics());
     }
 
     /**
-     * Test email sending
+     * Resend failed email
+     */
+    @PostMapping("/{logId}/resend")
+    public ResponseEntity<?> resendEmail(
+            @PathVariable UUID logId,
+            Authentication auth
+    ) {
+
+        EmailLog emailLog = emailLogRepository.findById(logId)
+                .orElseThrow(() -> new RuntimeException("Email log not found"));
+
+        // Only recipient or admin can resend
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (!emailLog.getRecipient().equals(auth.getName()) && !isAdmin) {
+            return ResponseEntity.status(403).body("Access denied");
+        }
+
+        if (!"FAILED".equals(emailLog.getStatus())) {
+            return ResponseEntity.badRequest()
+                    .body("Only FAILED emails can be resent");
+        }
+
+        // Call resend method
+        emailService.resendEmail(emailLog);
+
+        return ResponseEntity.ok("Email resent successfully");
+    }
+
+    /**
+     * Send test email
      */
     @PostMapping("/test")
     public ResponseEntity<?> sendTestEmail(
-            @RequestBody Map<String, String> request,
+            @RequestBody(required = false) Map<String, String> request,
             Authentication auth
     ) {
-        try {
-            String recipientEmail = request.getOrDefault("email", auth.getName());
 
-            // Send a simple test email
-            // emailService.sendTestEmail(recipientEmail);
+        String recipientEmail =
+                request != null && request.containsKey("email")
+                        ? request.get("email")
+                        : auth.getName();
 
-            return ResponseEntity.ok("Test email sent to: " + recipientEmail);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Error sending test email");
-        }
+        emailService.sendTestEmail(recipientEmail);
+
+        return ResponseEntity.ok("Test email sent to: " + recipientEmail);
     }
 }

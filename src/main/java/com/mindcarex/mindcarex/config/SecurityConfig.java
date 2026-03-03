@@ -30,43 +30,51 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
+                // Disable CSRF (JWT stateless API)
                 .csrf(csrf -> csrf.disable())
 
+                // Enable CORS
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
+                // Stateless session
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
 
+                // Authorization rules
                 .authorizeHttpRequests(auth -> auth
 
                         // Allow preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // Public APIs
-                        .requestMatchers(
-                                "/api/auth/register",
-                                "/api/auth/login"
-                        ).permitAll()
+                        // Public authentication endpoints
+                        .requestMatchers("/api/auth/**").permitAll()
 
                         // WebSocket endpoints
-                        .requestMatchers("/ws/**").permitAll()
-                        .requestMatchers("/topic/**").permitAll()
-                        .requestMatchers("/app/**").permitAll()
+                        .requestMatchers("/ws/**", "/topic/**", "/app/**").permitAll()
 
-                        // Authenticated APIs
-                        .requestMatchers("/api/appointments/**").authenticated()
-                        .requestMatchers("/api/users/**").authenticated()
-                        .requestMatchers("/api/sessions/**").authenticated()
-
-                        // Role-based
+                        // Role-based endpoints
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/doctor/**").hasRole("DOCTOR")
                         .requestMatchers("/api/patient/**").hasRole("PATIENT")
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
+                        // Specific protected endpoints
+                        .requestMatchers("/api/notifications/statistics").hasRole("ADMIN")
+
+                        // Authenticated endpoints
+                        .requestMatchers(
+                                "/api/appointments/**",
+                                "/api/users/**",
+                                "/api/sessions/**",
+                                "/api/profile/**",
+                                "/api/notifications/**"
+                        ).authenticated()
+
+                        // Everything else requires authentication
                         .anyRequest().authenticated()
                 )
 
+                // Add JWT filter
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -74,42 +82,23 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+
         CorsConfiguration config = new CorsConfiguration();
 
-        // Get allowed origins from environment variable
         String allowedOrigins = System.getenv("ALLOWED_ORIGINS");
 
-        if (allowedOrigins != null && !allowedOrigins.isEmpty()) {
-            // Production: use environment variable
-            List<String> origins = Arrays.asList(allowedOrigins.split(","));
-            config.setAllowedOrigins(origins);
-            System.out.println("CORS: Using origins from env: " + origins);
+        if (allowedOrigins != null && !allowedOrigins.isBlank()) {
+            config.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
         } else {
-            // Development: use localhost
+            // Dev fallback
             config.setAllowedOrigins(List.of("http://localhost:5173"));
-            System.out.println("CORS: Using default localhost");
         }
 
-        // Allow all standard methods
-        config.setAllowedMethods(Arrays.asList(
-                "GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"
-        ));
-
-        // Allow all headers
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
-
-        // Allow credentials (cookies, authorization headers)
+        config.setExposedHeaders(List.of("Authorization", "Content-Type"));
         config.setAllowCredentials(true);
-
-        // Cache preflight for 1 hour
         config.setMaxAge(3600L);
-
-        // Expose headers (for JWT token)
-        config.setExposedHeaders(Arrays.asList(
-                "Authorization",
-                "Content-Type",
-                "X-Requested-With"
-        ));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

@@ -387,4 +387,94 @@ public class EmailService {
                 "pending", emailLogRepository.countByStatus("PENDING")
         );
     }
+    /**
+     * Resend a failed email
+     */
+    @Async
+    public void resendEmail(EmailLog emailLog) {
+        try {
+            log.info("Attempting to resend email: {}", emailLog.getId());
+
+            // Recreate the HTML content based on email type
+            String htmlContent = recreateEmailContent(emailLog);
+
+            if (htmlContent == null) {
+                log.error("Cannot recreate email content for type: {}", emailLog.getEmailType());
+                return;
+            }
+
+            // Send the email
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setFrom(fromEmail, "mindcareX");
+            helper.setTo(emailLog.getRecipient());
+            helper.setSubject(emailLog.getSubject());
+            helper.setText(htmlContent, true);
+
+            mailSender.send(message);
+
+            // Update status to SENT
+            emailLog.setStatus("SENT");
+            emailLog.setSentAt(OffsetDateTime.now());
+            emailLog.setErrorMessage(null);
+            emailLogRepository.save(emailLog);
+
+            log.info("Successfully resent email: {}", emailLog.getId());
+
+        } catch (Exception e) {
+            emailLog.setStatus("FAILED");
+            emailLog.setErrorMessage("Resend failed: " + e.getMessage());
+            emailLogRepository.save(emailLog);
+            log.error("Failed to resend email: {}", emailLog.getId(), e);
+        }
+    }
+
+    /**
+     * Recreate email content from log (simplified version)
+     */
+    private String recreateEmailContent(EmailLog emailLog) {
+        // For simplicity, create a generic message
+        // In production, you'd need to fetch appointment/session data and recreate properly
+
+        Context context = new Context();
+        context.setVariable("recipientName", "User");
+        context.setVariable("message", "This is a resent notification from mindcareX");
+        context.setVariable("emailType", emailLog.getEmailType());
+        context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
+
+        return templateEngine.process("email/generic-resend", context);
+    }
+
+    /**
+     * Send test email
+     */
+    @Async
+    public void sendTestEmail(String recipientEmail) {
+        try {
+            Context context = new Context();
+            context.setVariable("recipientName", recipientEmail);
+            context.setVariable("testMessage", "This is a test email from mindcareX email notification system.");
+            context.setVariable("timestamp", OffsetDateTime.now().format(
+                    DateTimeFormatter.ofPattern("MMMM dd, yyyy 'at' hh:mm a")
+            ));
+            context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
+
+            String htmlContent = templateEngine.process("email/test-email", context);
+
+            sendEmail(
+                    recipientEmail,
+                    "Test Email - mindcareX Email System",
+                    htmlContent,
+                    "TEST_EMAIL",
+                    null,
+                    null
+            );
+
+            log.info("Test email sent to: {}", recipientEmail);
+
+        } catch (Exception e) {
+            log.error("Failed to send test email to: {}", recipientEmail, e);
+        }
+    }
 }
