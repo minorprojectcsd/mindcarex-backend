@@ -10,15 +10,17 @@ spring:
 
   mail:
     host: smtp-relay.brevo.com
-    port: 587
+    port: 465
     username: abhinavpadige06@gmail.com
     password: ${BREVO_SMTP_KEY}
     properties:
       mail:
         smtp:
           auth: true
-          starttls:
+          ssl:
             enable: true
+          starttls:
+            enable: false
 
   jpa:
     hibernate:
