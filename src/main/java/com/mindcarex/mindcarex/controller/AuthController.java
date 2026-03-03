@@ -92,7 +92,8 @@ public class AuthController {
      */
     private void createDoctorProfile(User user, Map<String, Object> requestBody) {
         Doctor doctor = Doctor.builder()
-                .id(user.getId())
+                .user(user)
+                .fullName(user.getFullName())
                 .specialization((String) requestBody.get("specialization"))
                 .licenseNumber((String) requestBody.get("licenseNumber"))
                 .experienceYears(parseInteger(requestBody.get("experienceYears")))
@@ -119,7 +120,8 @@ public class AuthController {
         }
 
         Patient patient = Patient.builder()
-                .id(user.getId())
+                .user(user)
+                .fullName(user.getFullName())
                 .dateOfBirth(dob)
                 .phoneNumber((String) requestBody.get("phoneNumber"))
                 .gender((String) requestBody.get("gender"))
