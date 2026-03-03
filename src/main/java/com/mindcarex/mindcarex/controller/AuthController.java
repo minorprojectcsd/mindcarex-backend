@@ -29,7 +29,7 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
 
     /**
-     * Enhanced registration with profile fields
+     * REGISTER - Create new user
      */
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody Map<String, Object> requestBody) {
@@ -39,39 +39,31 @@ public class AuthController {
             String fullName = (String) requestBody.get("fullName");
             String role = (String) requestBody.get("role");
 
-            // Validate required fields
             if (email == null || password == null || fullName == null || role == null) {
                 return ResponseEntity.badRequest().body("Missing required fields");
             }
 
-            // Check if user already exists
             if (userRepo.findByEmail(email).isPresent()) {
                 return ResponseEntity.badRequest().body("Email already registered");
             }
 
-            // Create user
             User user = User.builder()
                     .email(email)
                     .password(passwordEncoder.encode(password))
                     .fullName(fullName)
-                    .role(role.toUpperCase())
+                    .role(role.toUpperCase()) // DOCTOR, PATIENT, ADMIN
                     .enabled(true)
                     .build();
 
             userRepo.save(user);
 
-            // Create role-specific profile
             if ("DOCTOR".equalsIgnoreCase(role)) {
                 createDoctorProfile(user, requestBody);
             } else if ("PATIENT".equalsIgnoreCase(role)) {
                 createPatientProfile(user, requestBody);
             }
 
-            // Generate JWT token
-            String token = jwtUtil.generateToken(
-                    user.getEmail(),
-                    user.getRole()
-            );
+            String token = jwtUtil.generateToken(user.getEmail(), user.getRole());
 
             Map<String, Object> response = new HashMap<>();
             response.put("token", token);
@@ -88,7 +80,39 @@ public class AuthController {
     }
 
     /**
-     * Create doctor profile with enhanced fields
+     * LOGIN - Authenticate user
+     */
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody Map<String, String> credentials) {
+        try {
+            String email = credentials.get("email");
+            String password = credentials.get("password");
+
+            Authentication auth = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(email, password)
+            );
+
+            User user = userRepo.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            String token = jwtUtil.generateToken(user.getEmail(), user.getRole());
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("token", token);
+            response.put("userId", user.getId());
+            response.put("role", user.getRole());
+            response.put("email", user.getEmail());
+            response.put("fullName", user.getFullName());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body("Invalid credentials");
+        }
+    }
+
+    /**
+     * Create doctor profile
      */
     private void createDoctorProfile(User user, Map<String, Object> requestBody) {
         Doctor doctor = Doctor.builder()
@@ -109,14 +133,13 @@ public class AuthController {
     }
 
     /**
-     * Create patient profile with enhanced fields
+     * Create patient profile
      */
     private void createPatientProfile(User user, Map<String, Object> requestBody) {
-        // Parse date of birth
+
         LocalDate dob = null;
         if (requestBody.get("dateOfBirth") != null) {
-            String dobStr = (String) requestBody.get("dateOfBirth");
-            dob = LocalDate.parse(dobStr);
+            dob = LocalDate.parse((String) requestBody.get("dateOfBirth"));
         }
 
         Patient patient = Patient.builder()
@@ -130,10 +153,10 @@ public class AuthController {
                 .emergencyContactPhone((String) requestBody.get("emergencyContactPhone"))
                 .emergencyContactEmail((String) requestBody.get("emergencyContactEmail"))
                 .emergencyContactRelation((String) requestBody.get("emergencyContactRelation"))
-                .medicalHistory((String) requestBody.get("medicalHistory"))
+                .medicalHistory((String) requestBody.getOrDefault("medicalHistory", ""))
                 .bloodGroup((String) requestBody.get("bloodGroup"))
-                .allergies((String) requestBody.get("allergies"))
-                .currentMedications((String) requestBody.get("currentMedications"))
+                .allergies((String) requestBody.getOrDefault("allergies", ""))
+                .currentMedications((String) requestBody.getOrDefault("currentMedications", ""))
                 .insuranceProvider((String) requestBody.get("insuranceProvider"))
                 .insuranceNumber((String) requestBody.get("insuranceNumber"))
                 .build();
@@ -142,56 +165,15 @@ public class AuthController {
     }
 
     /**
-     * Helper to parse integer safely
+     * Helper method
      */
     private Integer parseInteger(Object value) {
         if (value == null) return null;
         if (value instanceof Integer) return (Integer) value;
-        if (value instanceof String) {
-            try {
-                return Integer.parseInt((String) value);
-            } catch (NumberFormatException e) {
-                return null;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Login endpoint
-     */
-    @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody Map<String, String> credentials) {
         try {
-            String email = credentials.get("email");
-            String password = credentials.get("password");
-
-            // Authenticate
-            Authentication auth = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(email, password)
-            );
-
-            // Get user
-            User user = userRepo.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
-
-            // Generate token
-            String token = jwtUtil.generateToken(
-                    user.getEmail(),
-                    user.getRole()
-            );
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("token", token);
-            response.put("userId", user.getId());
-            response.put("role", user.getRole());
-            response.put("email", user.getEmail());
-            response.put("fullName", user.getFullName());
-
-            return ResponseEntity.ok(response);
-
+            return Integer.parseInt(value.toString());
         } catch (Exception e) {
-            return ResponseEntity.status(401).body("Invalid credentials");
+            return null;
         }
     }
 }

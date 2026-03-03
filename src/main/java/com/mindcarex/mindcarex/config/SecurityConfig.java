@@ -44,37 +44,41 @@ public class SecurityConfig {
                 // Authorization rules
                 .authorizeHttpRequests(auth -> auth
 
-                        // Allow preflight
+                        // ⭐ MOST SPECIFIC RULES FIRST
+
+                        // Allow preflight OPTIONS requests (before authentication)
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // Public authentication endpoints
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
 
-                        // WebSocket endpoints
-                        .requestMatchers("/ws/**", "/topic/**", "/app/**").permitAll()
+                        // WebSocket endpoints (public for connection)
+                        .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers("/topic/**").permitAll()
+                        .requestMatchers("/app/**").permitAll()
 
-                        // Role-based endpoints
+                        // Admin-only endpoints
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/doctor/**").hasRole("DOCTOR")
-                        .requestMatchers("/api/patient/**").hasRole("PATIENT")
-
-                        // Specific protected endpoints
                         .requestMatchers("/api/notifications/statistics").hasRole("ADMIN")
 
-                        // Authenticated endpoints
-                        .requestMatchers(
-                                "/api/appointments/**",
-                                "/api/users/**",
-                                "/api/sessions/**",
-                                "/api/profile/**",
-                                "/api/notifications/**"
-                        ).authenticated()
+                        // Doctor-only endpoints
+                        .requestMatchers("/api/doctor/**").hasRole("DOCTOR")
+
+                        // Patient-only endpoints
+                        .requestMatchers("/api/patient/**").hasRole("PATIENT")
+
+                        // ⭐ GENERAL AUTHENTICATED ENDPOINTS (after role-specific)
+                        .requestMatchers("/api/appointments/**").authenticated()
+                        .requestMatchers("/api/users/**").authenticated()
+                        .requestMatchers("/api/sessions/**").authenticated()
+                        .requestMatchers("/api/profile/**").authenticated()
+                        .requestMatchers("/api/notifications/**").authenticated()
 
                         // Everything else requires authentication
                         .anyRequest().authenticated()
                 )
 
-                // Add JWT filter
+                // Add JWT filter before Spring Security's default filter
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -85,19 +89,39 @@ public class SecurityConfig {
 
         CorsConfiguration config = new CorsConfiguration();
 
+        // Get allowed origins from environment variable
         String allowedOrigins = System.getenv("ALLOWED_ORIGINS");
 
         if (allowedOrigins != null && !allowedOrigins.isBlank()) {
-            config.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
+            // Production: use environment variable
+            List<String> origins = Arrays.asList(allowedOrigins.split(","));
+            config.setAllowedOrigins(origins);
+            System.out.println("✅ CORS: Using origins from env: " + origins);
         } else {
-            // Dev fallback
+            // Development: use localhost
             config.setAllowedOrigins(List.of("http://localhost:5173"));
+            System.out.println("⚠️ CORS: Using default localhost (set ALLOWED_ORIGINS for production)");
         }
 
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+        // Allow all standard HTTP methods
+        config.setAllowedMethods(Arrays.asList(
+                "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
+        ));
+
+        // Allow all headers
         config.setAllowedHeaders(List.of("*"));
-        config.setExposedHeaders(List.of("Authorization", "Content-Type"));
+
+        // Expose headers that client can access
+        config.setExposedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Type",
+                "X-Requested-With"
+        ));
+
+        // Allow credentials (cookies, authorization headers)
         config.setAllowCredentials(true);
+
+        // Cache preflight requests for 1 hour
         config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
