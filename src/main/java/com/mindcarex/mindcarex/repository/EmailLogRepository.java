@@ -16,5 +16,5 @@ public interface EmailLogRepository extends JpaRepository<EmailLog, UUID> {
 
     List<EmailLog> findByStatusOrderByCreatedAtDesc(String status);
 
-    Long countByStatusAndEmailType(String status, String emailType);
+    Long countByStatus(String status);
 }

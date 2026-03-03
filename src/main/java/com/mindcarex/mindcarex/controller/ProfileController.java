@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/profile")
@@ -20,9 +21,6 @@ public class ProfileController {
     private final DoctorRepository doctorRepo;
     private final PatientRepository patientRepo;
 
-    /**
-     * Get current user profile (with role-specific data)
-     */
     @GetMapping
     public ResponseEntity<?> getProfile(Authentication auth) {
         try {
@@ -34,9 +32,8 @@ public class ProfileController {
             response.put("fullName", user.getFullName());
             response.put("role", user.getRole());
 
-            // Add role-specific data
             if ("DOCTOR".equals(user.getRole())) {
-                Doctor doctor = doctorRepo.findByUser_Id(user.getId()).orElse(null);
+                Doctor doctor = doctorRepo.findByUserId(user.getId()).orElse(null);  // ⭐ FIXED
                 if (doctor != null) {
                     response.put("profile", buildDoctorResponse(doctor));
                 }
@@ -48,15 +45,11 @@ public class ProfileController {
             }
 
             return ResponseEntity.ok(response);
-
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error fetching profile");
         }
     }
 
-    /**
-     * Update user profile
-     */
     @PutMapping
     public ResponseEntity<?> updateProfile(
             @RequestBody Map<String, Object> updates,
@@ -65,13 +58,11 @@ public class ProfileController {
         try {
             User user = userRepo.findByEmail(auth.getName()).orElseThrow();
 
-            // Update user fields
             if (updates.containsKey("fullName")) {
                 user.setFullName((String) updates.get("fullName"));
             }
             userRepo.save(user);
 
-            // Update role-specific profile
             if ("DOCTOR".equals(user.getRole())) {
                 updateDoctorProfile(user.getId(), updates);
             } else if ("PATIENT".equals(user.getRole())) {
@@ -79,17 +70,13 @@ public class ProfileController {
             }
 
             return ResponseEntity.ok("Profile updated successfully");
-
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error updating profile");
         }
     }
 
-    /**
-     * Update doctor profile
-     */
-    private void updateDoctorProfile(java.util.UUID userId, Map<String, Object> updates) {
-        Doctor doctor = doctorRepo.findByUser_Id(userId).orElseThrow();
+    private void updateDoctorProfile(UUID userId, Map<String, Object> updates) {
+        Doctor doctor = doctorRepo.findByUserId(userId).orElseThrow();  // ⭐ FIXED
 
         if (updates.containsKey("specialization")) {
             doctor.setSpecialization((String) updates.get("specialization"));
@@ -119,10 +106,7 @@ public class ProfileController {
         doctorRepo.save(doctor);
     }
 
-    /**
-     * Update patient profile
-     */
-    private void updatePatientProfile(java.util.UUID userId, Map<String, Object> updates) {
+    private void updatePatientProfile(UUID userId, Map<String, Object> updates) {
         Patient patient = patientRepo.findByUserId(userId).orElseThrow();
 
         if (updates.containsKey("dateOfBirth")) {
@@ -171,9 +155,6 @@ public class ProfileController {
         patientRepo.save(patient);
     }
 
-    /**
-     * Build doctor response object
-     */
     private Map<String, Object> buildDoctorResponse(Doctor doctor) {
         Map<String, Object> map = new HashMap<>();
         map.put("id", doctor.getId());
@@ -189,9 +170,6 @@ public class ProfileController {
         return map;
     }
 
-    /**
-     * Build patient response object
-     */
     private Map<String, Object> buildPatientResponse(Patient patient) {
         Map<String, Object> map = new HashMap<>();
         map.put("id", patient.getId());
@@ -213,9 +191,6 @@ public class ProfileController {
         return map;
     }
 
-    /**
-     * Helper to parse integer
-     */
     private Integer parseInteger(Object value) {
         if (value == null) return null;
         if (value instanceof Integer) return (Integer) value;

@@ -2,6 +2,7 @@ package com.mindcarex.mindcarex.controller;
 
 import com.mindcarex.mindcarex.entity.*;
 import com.mindcarex.mindcarex.repository.*;
+import com.mindcarex.mindcarex.service.EmailService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -20,10 +21,8 @@ public class AppointmentController {
     private final PatientRepository patientRepo;
     private final UserRepository userRepo;
     private final SessionRepository sessionRepo;
+    private final EmailService emailService;  // ⭐ ADD THIS
 
-    // =========================
-    // BOOK APPOINTMENT (PATIENT)
-    // =========================
     @PostMapping
     public ResponseEntity<?> create(
             @RequestBody Map<String, String> req,
@@ -40,7 +39,6 @@ public class AppointmentController {
             Patient patient = patientRepo.findByUserId(user.getId())
                     .orElseThrow(() -> new RuntimeException("Patient profile missing"));
 
-            // Validate required fields
             if (req.get("doctorId") == null || req.get("doctorId").isEmpty()) {
                 return ResponseEntity.badRequest().body("doctorId is required");
             }
@@ -49,11 +47,6 @@ public class AppointmentController {
                 return ResponseEntity.badRequest().body("startTime is required");
             }
 
-            if (req.get("endTime") == null || req.get("endTime").isEmpty()) {
-                return ResponseEntity.badRequest().body("endTime is required");
-            }
-
-            // Parse with error handling
             UUID doctorId;
             try {
                 doctorId = UUID.fromString(req.get("doctorId"));
@@ -62,13 +55,11 @@ public class AppointmentController {
             }
 
             OffsetDateTime startTime;
-            OffsetDateTime endTime;
             try {
                 startTime = OffsetDateTime.parse(req.get("startTime"));
-                endTime = OffsetDateTime.parse(req.get("endTime"));
             } catch (Exception e) {
                 return ResponseEntity.badRequest()
-                        .body("Invalid date format. Use ISO-8601: 2026-02-15T10:00:00Z");
+                        .body("Invalid date format. Use ISO-8601");
             }
 
             Doctor doctor = doctorRepo.findById(doctorId)
@@ -84,6 +75,10 @@ public class AppointmentController {
 
             appointmentRepo.save(appt);
 
+            // ⭐ SEND CONFIRMATION EMAILS
+            emailService.sendAppointmentConfirmationToPatient(appt, patient, doctor);
+            emailService.sendAppointmentNotificationToDoctor(appt, patient, doctor);
+
             return ResponseEntity.ok(
                     Map.of(
                             "message", "Appointment booked successfully",
@@ -97,9 +92,6 @@ public class AppointmentController {
         }
     }
 
-    // =========================
-    // PATIENT → MY APPOINTMENTS
-    // =========================
     @GetMapping("/my")
     public ResponseEntity<?> myAppointments(Authentication auth) {
 
@@ -122,7 +114,6 @@ public class AppointmentController {
             appt.put("startTime", a.getScheduledAt());
             appt.put("status", a.getStatus());
 
-            // Include session info if exists
             Optional<Session> session = sessionRepo.findByAppointment(a);
             if (session.isPresent()) {
                 appt.put("sessionId", session.get().getId());
@@ -132,7 +123,6 @@ public class AppointmentController {
                 appt.put("sessionStatus", null);
             }
 
-            // DOCTOR DETAILS
             Map<String, Object> doctor = new HashMap<>();
             doctor.put("id", a.getDoctor().getId());
             doctor.put("name", a.getDoctor().getFullName());
@@ -146,12 +136,10 @@ public class AppointmentController {
         return ResponseEntity.ok(response);
     }
 
-    // =========================
-    // CANCEL APPOINTMENT (⭐ NEW)
-    // =========================
     @PostMapping("/{id}/cancel")
     public ResponseEntity<?> cancelAppointment(
             @PathVariable UUID id,
+            @RequestBody(required = false) Map<String, String> req,
             Authentication auth
     ) {
         try {
@@ -161,19 +149,17 @@ public class AppointmentController {
             Appointment appointment = appointmentRepo.findById(id)
                     .orElseThrow(() -> new RuntimeException("Appointment not found"));
 
-            // Check if user is authorized
             boolean isPatient = "PATIENT".equals(user.getRole()) &&
-                    appointment.getPatient().getUser().getId().equals(user.getId());
+                    appointment.getPatient().getId().equals(user.getId());
 
             boolean isDoctor = "DOCTOR".equals(user.getRole()) &&
-                    appointment.getDoctor().getUser().getId().equals(user.getId());
+                    appointment.getDoctor().getId().equals(user.getId());
 
             if (!isPatient && !isDoctor) {
                 return ResponseEntity.status(403)
                         .body("You are not authorized to cancel this appointment");
             }
 
-            // Check if appointment can be cancelled
             if ("COMPLETED".equals(appointment.getStatus())) {
                 return ResponseEntity.badRequest()
                         .body("Cannot cancel a completed appointment");
@@ -184,7 +170,6 @@ public class AppointmentController {
                         .body("Appointment is already cancelled");
             }
 
-            // If session is in progress, end it first
             Optional<Session> existingSession = sessionRepo.findByAppointment(appointment);
             if (existingSession.isPresent() &&
                     "IN_PROGRESS".equals(existingSession.get().getStatus())) {
@@ -195,9 +180,26 @@ public class AppointmentController {
                 sessionRepo.save(session);
             }
 
-            // Cancel the appointment
             appointment.setStatus("CANCELLED");
             appointmentRepo.save(appointment);
+
+            // ⭐ SEND CANCELLATION EMAILS
+            Doctor doctor = appointment.getDoctor();
+            Patient patient = appointment.getPatient();
+            User doctorUser = doctor.getUser();
+            User patientUser = patient.getUser();
+
+            String reason = req != null ? req.get("reason") : "No reason provided";
+
+            if (isDoctor) {
+                emailService.sendAppointmentCancellation(
+                        appointment, patientUser, doctorUser, reason
+                );
+            } else {
+                emailService.sendAppointmentCancellation(
+                        appointment, doctorUser, patientUser, reason
+                );
+            }
 
             return ResponseEntity.ok(Map.of(
                     "message", "Appointment cancelled successfully",

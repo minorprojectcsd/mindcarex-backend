@@ -17,11 +17,8 @@ public class DoctorController {
     private final DoctorRepository doctorRepo;
     private final AppointmentRepository appointmentRepo;
     private final UserRepository userRepo;
-    private final SessionRepository sessionRepo; // ⭐ NEW
+    private final SessionRepository sessionRepo;
 
-    // =========================
-    // DOCTOR → MY APPOINTMENTS (⭐ UPDATED)
-    // =========================
     @GetMapping("/appointments")
     public ResponseEntity<?> myAppointments(Authentication auth) {
 
@@ -32,7 +29,7 @@ public class DoctorController {
             return ResponseEntity.status(403).body("Access denied");
         }
 
-        Doctor doctor = doctorRepo.findByUser_Id(user.getId())
+        Doctor doctor = doctorRepo.findByUserId(user.getId())  // ⭐ FIXED
                 .orElseThrow(() -> new RuntimeException("Doctor profile missing"));
 
         List<Map<String, Object>> response = new ArrayList<>();
@@ -44,7 +41,6 @@ public class DoctorController {
             appt.put("startTime", a.getScheduledAt());
             appt.put("status", a.getStatus());
 
-            // ⭐ NEW: Include session info if exists
             Optional<Session> session = sessionRepo.findByAppointment(a);
             if (session.isPresent()) {
                 appt.put("sessionId", session.get().getId());
@@ -54,7 +50,6 @@ public class DoctorController {
                 appt.put("sessionStatus", null);
             }
 
-            // PATIENT DETAILS
             Map<String, Object> patient = new HashMap<>();
             patient.put("id", a.getPatient().getId());
             patient.put("name", a.getPatient().getFullName());

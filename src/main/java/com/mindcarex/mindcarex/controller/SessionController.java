@@ -26,7 +26,6 @@ public class SessionController {
     private final ChatMessageRepository chatMessageRepo;
     private final EmailService emailService;
 
-    // ✅ START SESSION (Doctor only) - ⭐ UPDATED
     @PostMapping("/{appointmentId}/start")
     public ResponseEntity<?> startSession(
             @PathVariable UUID appointmentId,
@@ -38,7 +37,7 @@ public class SessionController {
             return ResponseEntity.status(403).body("Only doctor can start session");
         }
 
-        Doctor doctor = doctorRepo.findByUser_Id(user.getId())
+        Doctor doctor = doctorRepo.findByUserId(user.getId())  // ⭐ FIXED
                 .orElseThrow(() -> new RuntimeException("Doctor profile missing"));
 
         Appointment appointment = appointmentRepo.findById(appointmentId)
@@ -48,7 +47,6 @@ public class SessionController {
             return ResponseEntity.status(403).body("Not your appointment");
         }
 
-        // ⭐ NEW: Update appointment status to IN_PROGRESS
         appointment.setStatus("IN_PROGRESS");
         appointmentRepo.save(appointment);
 
@@ -69,7 +67,6 @@ public class SessionController {
         ));
     }
 
-    // ✅ GET SESSION (Doctor or Patient)
     @GetMapping("/{sessionId}")
     public ResponseEntity<?> getSession(
             @PathVariable UUID sessionId,
@@ -78,15 +75,13 @@ public class SessionController {
         Session session = sessionRepo.findById(sessionId)
                 .orElseThrow(() -> new RuntimeException("Session not found"));
 
-        // Validate user is participant
         if (!isSessionParticipant(session, auth)) {
-            return ResponseEntity.status(403).body("Not authorized to view this session");
+            return ResponseEntity.status(403).body("Not authorized");
         }
 
         return ResponseEntity.ok(session);
     }
 
-    // ⭐ NEW: GET CHAT HISTORY
     @GetMapping("/{sessionId}/chat")
     public ResponseEntity<?> getChatHistory(
             @PathVariable UUID sessionId,
@@ -95,9 +90,8 @@ public class SessionController {
         Session session = sessionRepo.findById(sessionId)
                 .orElseThrow(() -> new RuntimeException("Session not found"));
 
-        // Validate user is participant
         if (!isSessionParticipant(session, auth)) {
-            return ResponseEntity.status(403).body("Not authorized to view chat");
+            return ResponseEntity.status(403).body("Not authorized");
         }
 
         var messages = chatMessageRepo.findBySessionIdOrderByTimestampAsc(sessionId);
@@ -105,7 +99,6 @@ public class SessionController {
         return ResponseEntity.ok(messages);
     }
 
-    // ✅ END SESSION (Doctor only) - ⭐ UPDATED
     @PostMapping("/{sessionId}/end")
     public ResponseEntity<?> endSession(
             @PathVariable UUID sessionId,
@@ -129,7 +122,6 @@ public class SessionController {
         session.setEndedAt(OffsetDateTime.now());
         sessionRepo.save(session);
 
-        // ⭐ Send session summary emails
         if (summaryData != null) {
             Doctor doctor = appointment.getDoctor();
             Patient patient = appointment.getPatient();
@@ -137,21 +129,19 @@ public class SessionController {
             User patientUser = patient.getUser();
 
             String aiSummary = (String) summaryData.get("aiSummary");
+            @SuppressWarnings("unchecked")
             List<String> keyPoints = (List<String>) summaryData.get("keyPoints");
             String recommendations = (String) summaryData.get("recommendations");
             String nextSteps = (String) summaryData.get("nextSteps");
 
-            // Send to doctor
             emailService.sendSessionSummary(
                     session, doctorUser, aiSummary, keyPoints, recommendations, nextSteps
             );
 
-            // Send to patient
             emailService.sendSessionSummary(
                     session, patientUser, aiSummary, keyPoints, recommendations, nextSteps
             );
 
-            // ⭐ Send to guardian if email exists
             emailService.sendSessionSummaryToGuardian(
                     session, patient, aiSummary, keyPoints, recommendations
             );
@@ -160,16 +150,14 @@ public class SessionController {
         return ResponseEntity.ok("Session ended");
     }
 
-    // Helper method to validate session participant
     private boolean isSessionParticipant(Session session, Authentication auth) {
         User user = userRepo.findByEmail(auth.getName()).orElseThrow();
 
-        // Get doctor and patient from appointment
         Doctor doctor = session.getAppointment().getDoctor();
         Patient patient = session.getAppointment().getPatient();
 
-        UUID doctorUserId = doctor.getUserId();
-        UUID patientUserId = patient.getUserId();
+        UUID doctorUserId = doctor.getId();
+        UUID patientUserId = patient.getId();
 
         return user.getId().equals(doctorUserId) || user.getId().equals(patientUserId);
     }

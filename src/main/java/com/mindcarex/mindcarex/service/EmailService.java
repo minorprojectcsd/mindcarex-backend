@@ -268,7 +268,6 @@ public class EmailService {
             String recommendations
     ) {
         try {
-            // Check if guardian email exists
             if (patient.getEmergencyContactEmail() == null ||
                     patient.getEmergencyContactEmail().isEmpty()) {
                 log.info("No guardian email for patient: {}", patient.getId());
@@ -383,9 +382,9 @@ public class EmailService {
     public Map<String, Long> getEmailStatistics() {
         return Map.of(
                 "total", emailLogRepository.count(),
-                "sent", emailLogRepository.countByStatusAndEmailType("SENT", null),
-                "failed", emailLogRepository.countByStatusAndEmailType("FAILED", null),
-                "pending", emailLogRepository.countByStatusAndEmailType("PENDING", null)
+                "sent", emailLogRepository.countByStatus("SENT"),
+                "failed", emailLogRepository.countByStatus("FAILED"),
+                "pending", emailLogRepository.countByStatus("PENDING")
         );
     }
 }
