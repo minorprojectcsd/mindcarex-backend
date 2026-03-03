@@ -22,30 +22,31 @@ public class EmailNotificationController {
 
     /**
      * Get email history for current user
+     * (Accessible to any authenticated user)
      */
     @GetMapping("/history")
     public ResponseEntity<?> getEmailHistory(Authentication auth) {
+
         List<EmailLog> history =
                 emailService.getEmailHistory(auth.getName());
+
         return ResponseEntity.ok(history);
     }
 
     /**
-     * Get email statistics (ADMIN only)
+     * Get email statistics
+     * Access control handled by SecurityConfig:
+     * .hasAnyRole("DOCTOR", "ADMIN")
      */
     @GetMapping("/statistics")
-    public ResponseEntity<?> getStatistics(Authentication auth) {
-
-        if (!auth.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
-            return ResponseEntity.status(403).body("Access denied");
-        }
+    public ResponseEntity<?> getStatistics() {
 
         return ResponseEntity.ok(emailService.getEmailStatistics());
     }
 
     /**
      * Resend failed email
+     * Only recipient or ADMIN can resend
      */
     @PostMapping("/{logId}/resend")
     public ResponseEntity<?> resendEmail(
@@ -56,7 +57,6 @@ public class EmailNotificationController {
         EmailLog emailLog = emailLogRepository.findById(logId)
                 .orElseThrow(() -> new RuntimeException("Email log not found"));
 
-        // Only recipient or admin can resend
         boolean isAdmin = auth.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
 
@@ -69,7 +69,6 @@ public class EmailNotificationController {
                     .body("Only FAILED emails can be resent");
         }
 
-        // Call resend method
         emailService.resendEmail(emailLog);
 
         return ResponseEntity.ok("Email resent successfully");
