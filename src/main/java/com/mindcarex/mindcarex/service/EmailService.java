@@ -299,6 +299,38 @@ public class EmailService {
         );
     }
 
+    @Async
+    public void sendTestEmail(String recipientEmail) {
+
+        try {
+
+            Context context = new Context();
+            context.setVariable("recipientName", recipientEmail);
+            context.setVariable("timestamp",
+                    OffsetDateTime.now().format(
+                            DateTimeFormatter.ofPattern("MMMM dd, yyyy 'at' hh:mm a")
+                    ));
+            context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
+
+            String htmlContent =
+                    templateEngine.process("email/test-email", context);
+
+            sendEmail(
+                    recipientEmail,
+                    "Test Email - mindcareX",
+                    htmlContent,
+                    "TEST_EMAIL",
+                    null,
+                    null
+            );
+
+            log.info("Test email sent to: {}", recipientEmail);
+
+        } catch (Exception e) {
+            log.error("Failed to send test email", e);
+        }
+    }
+
     /* ============================================================
        RESEND + STATS
        ============================================================ */
