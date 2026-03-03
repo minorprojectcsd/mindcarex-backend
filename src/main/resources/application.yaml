@@ -7,20 +7,9 @@ spring:
     hikari:
       maximum-pool-size: 5
       minimum-idle: 2
-
-  mail:
-    host: ${EMAIL_HOST}
-    port: ${EMAIL_PORT}
-    username: ${EMAIL_USERNAME}
-    password: ${EMAIL_PASSWORD}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-          ssl:
-            enable: false
+  app:
+    frontend:
+      url: https://mindcarex.vercel.app
 
   jpa:
     hibernate:

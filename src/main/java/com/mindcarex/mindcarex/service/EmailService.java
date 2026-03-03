@@ -2,15 +2,12 @@ package com.mindcarex.mindcarex.service;
 
 import com.mindcarex.mindcarex.entity.*;
 import com.mindcarex.mindcarex.repository.EmailLogRepository;
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
@@ -25,294 +22,32 @@ import java.util.UUID;
 @Slf4j
 public class EmailService {
 
-    private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
     private final EmailLogRepository emailLogRepository;
 
-    @Value("${spring.mail.username}")
+    @Value("${BREVO_API_KEY}")
+    private String brevoApiKey;
+
+    @Value("${BREVO_FROM_EMAIL}")
     private String fromEmail;
 
     @Value("${app.frontend.url:https://mindcarex.vercel.app}")
     private String frontendUrl;
+
+    private final WebClient webClient = WebClient.builder()
+            .baseUrl("https://api.brevo.com/v3")
+            .build();
 
     private static final DateTimeFormatter DATE_FORMATTER =
             DateTimeFormatter.ofPattern("MMMM dd, yyyy");
     private static final DateTimeFormatter TIME_FORMATTER =
             DateTimeFormatter.ofPattern("hh:mm a");
 
-    /**
-     * Send appointment confirmation to patient
-     */
+    /* ============================================================
+       CORE BREVO EMAIL SENDER
+       ============================================================ */
+
     @Async
-    public void sendAppointmentConfirmationToPatient(
-            Appointment appointment,
-            Patient patient,
-            Doctor doctor
-    ) {
-        try {
-            User patientUser = patient.getUser();
-            User doctorUser = doctor.getUser();
-
-            Context context = new Context();
-            context.setVariable("patientName", patientUser.getFullName());
-            context.setVariable("doctorName", doctorUser.getFullName());
-            context.setVariable("specialization", doctor.getSpecialization());
-            context.setVariable("appointmentDate",
-                    appointment.getScheduledAt().format(DATE_FORMATTER));
-            context.setVariable("appointmentTime",
-                    appointment.getScheduledAt().format(TIME_FORMATTER));
-            context.setVariable("appointmentId", appointment.getId().toString().substring(0, 8));
-            context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
-            context.setVariable("notes", appointment.getNotes());
-
-            String htmlContent = templateEngine.process(
-                    "email/appointment-booked-patient",
-                    context
-            );
-
-            sendEmail(
-                    patientUser.getEmail(),
-                    "Appointment Confirmed - mindcareX",
-                    htmlContent,
-                    "APPOINTMENT_BOOKED",
-                    appointment.getId(),
-                    null
-            );
-
-            log.info("Sent appointment confirmation to patient: {}", patientUser.getEmail());
-
-        } catch (Exception e) {
-            log.error("Failed to send appointment confirmation to patient", e);
-        }
-    }
-
-    /**
-     * Send appointment notification to doctor
-     */
-    @Async
-    public void sendAppointmentNotificationToDoctor(
-            Appointment appointment,
-            Patient patient,
-            Doctor doctor
-    ) {
-        try {
-            User patientUser = patient.getUser();
-            User doctorUser = doctor.getUser();
-
-            Context context = new Context();
-            context.setVariable("doctorName", doctorUser.getFullName());
-            context.setVariable("patientName", patientUser.getFullName());
-            context.setVariable("appointmentDate",
-                    appointment.getScheduledAt().format(DATE_FORMATTER));
-            context.setVariable("appointmentTime",
-                    appointment.getScheduledAt().format(TIME_FORMATTER));
-            context.setVariable("appointmentId", appointment.getId().toString().substring(0, 8));
-            context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
-            context.setVariable("notes", appointment.getNotes());
-
-            String htmlContent = templateEngine.process(
-                    "email/appointment-booked-doctor",
-                    context
-            );
-
-            sendEmail(
-                    doctorUser.getEmail(),
-                    "New Appointment Scheduled - mindcareX",
-                    htmlContent,
-                    "APPOINTMENT_BOOKED",
-                    appointment.getId(),
-                    null
-            );
-
-            log.info("Sent appointment notification to doctor: {}", doctorUser.getEmail());
-
-        } catch (Exception e) {
-            log.error("Failed to send appointment notification to doctor", e);
-        }
-    }
-
-    /**
-     * Send 10-minute reminder before session
-     */
-    @Async
-    public void sendSessionReminder(
-            Appointment appointment,
-            User recipient,
-            User otherParticipant,
-            UUID sessionId
-    ) {
-        try {
-            Context context = new Context();
-            context.setVariable("recipientName", recipient.getFullName());
-            context.setVariable("otherParticipant", otherParticipant.getFullName());
-            context.setVariable("appointmentDate",
-                    appointment.getScheduledAt().format(DATE_FORMATTER));
-            context.setVariable("appointmentTime",
-                    appointment.getScheduledAt().format(TIME_FORMATTER));
-            context.setVariable("sessionUrl",
-                    frontendUrl + "/video-session/" + sessionId);
-
-            String htmlContent = templateEngine.process(
-                    "email/session-reminder",
-                    context
-            );
-
-            sendEmail(
-                    recipient.getEmail(),
-                    "⏰ Session Starting in 10 Minutes - mindcareX",
-                    htmlContent,
-                    "SESSION_REMINDER",
-                    appointment.getId(),
-                    sessionId
-            );
-
-            log.info("Sent session reminder to: {}", recipient.getEmail());
-
-        } catch (Exception e) {
-            log.error("Failed to send session reminder", e);
-        }
-    }
-
-    /**
-     * Send appointment cancellation notification
-     */
-    @Async
-    public void sendAppointmentCancellation(
-            Appointment appointment,
-            User recipient,
-            User otherParticipant,
-            String cancellationReason
-    ) {
-        try {
-            Context context = new Context();
-            context.setVariable("recipientName", recipient.getFullName());
-            context.setVariable("otherParticipant", otherParticipant.getFullName());
-            context.setVariable("appointmentDate",
-                    appointment.getScheduledAt().format(DATE_FORMATTER));
-            context.setVariable("appointmentTime",
-                    appointment.getScheduledAt().format(TIME_FORMATTER));
-            context.setVariable("cancellationReason", cancellationReason);
-            context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
-
-            String htmlContent = templateEngine.process(
-                    "email/appointment-cancelled",
-                    context
-            );
-
-            sendEmail(
-                    recipient.getEmail(),
-                    "Appointment Cancelled - mindcareX",
-                    htmlContent,
-                    "APPOINTMENT_CANCELLED",
-                    appointment.getId(),
-                    null
-            );
-
-            log.info("Sent cancellation notification to: {}", recipient.getEmail());
-
-        } catch (Exception e) {
-            log.error("Failed to send cancellation notification", e);
-        }
-    }
-
-    /**
-     * Send session summary after completion
-     */
-    @Async
-    public void sendSessionSummary(
-            Session session,
-            User recipient,
-            String aiSummary,
-            List<String> keyPoints,
-            String recommendations,
-            String nextSteps
-    ) {
-        try {
-            Context context = new Context();
-            context.setVariable("recipientName", recipient.getFullName());
-            context.setVariable("duration", calculateDuration(session));
-            context.setVariable("sessionDate",
-                    session.getStartedAt().format(DATE_FORMATTER));
-            context.setVariable("aiSummary", aiSummary);
-            context.setVariable("keyPoints", keyPoints);
-            context.setVariable("recommendations", recommendations);
-            context.setVariable("nextSteps", nextSteps);
-            context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
-
-            String htmlContent = templateEngine.process(
-                    "email/session-summary",
-                    context
-            );
-
-            sendEmail(
-                    recipient.getEmail(),
-                    "Session Summary - mindcareX",
-                    htmlContent,
-                    "SESSION_SUMMARY",
-                    session.getAppointment().getId(),
-                    session.getId()
-            );
-
-            log.info("Sent session summary to: {}", recipient.getEmail());
-
-        } catch (Exception e) {
-            log.error("Failed to send session summary", e);
-        }
-    }
-    @Async
-    public void sendSessionSummaryToGuardian(
-            Session session,
-            Patient patient,
-            String aiSummary,
-            List<String> keyPoints,
-            String recommendations
-    ) {
-        try {
-            if (patient.getEmergencyContactEmail() == null ||
-                    patient.getEmergencyContactEmail().isEmpty()) {
-                log.info("No guardian email for patient: {}", patient.getId());
-                return;
-            }
-
-            User patientUser = patient.getUser();
-
-            Context context = new Context();
-            context.setVariable("recipientName", patient.getEmergencyContactName());
-            context.setVariable("patientName", patientUser.getFullName());
-            context.setVariable("relation", patient.getEmergencyContactRelation());
-            context.setVariable("duration", calculateDuration(session));
-            context.setVariable("sessionDate",
-                    session.getStartedAt().format(DATE_FORMATTER));
-            context.setVariable("aiSummary", aiSummary);
-            context.setVariable("keyPoints", keyPoints);
-            context.setVariable("recommendations", recommendations);
-            context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
-
-            String htmlContent = templateEngine.process(
-                    "email/guardian-session-summary",
-                    context
-            );
-
-            sendEmail(
-                    patient.getEmergencyContactEmail(),
-                    "Session Update for " + patientUser.getFullName() + " - mindcareX",
-                    htmlContent,
-                    "GUARDIAN_NOTIFICATION",
-                    session.getAppointment().getId(),
-                    session.getId()
-            );
-
-            log.info("Sent session summary to guardian: {}",
-                    patient.getEmergencyContactEmail());
-
-        } catch (Exception e) {
-            log.error("Failed to send guardian notification", e);
-        }
-    }
-
-    /**
-     * Core email sending method
-     */
     private void sendEmail(
             String to,
             String subject,
@@ -321,6 +56,7 @@ public class EmailService {
             UUID appointmentId,
             UUID sessionId
     ) {
+
         EmailLog emailLog = EmailLog.builder()
                 .recipient(to)
                 .subject(subject)
@@ -331,15 +67,25 @@ public class EmailService {
                 .build();
 
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            helper.setFrom(fromEmail, "mindcareX");
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(htmlContent, true);
+            Map<String, Object> body = Map.of(
+                    "sender", Map.of(
+                            "name", "mindcareX",
+                            "email", fromEmail
+                    ),
+                    "to", List.of(Map.of("email", to)),
+                    "subject", subject,
+                    "htmlContent", htmlContent
+            );
 
-            mailSender.send(message);
+            webClient.post()
+                    .uri("/smtp/email")
+                    .header("api-key", brevoApiKey)
+                    .header("Content-Type", "application/json")
+                    .bodyValue(body)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
 
             emailLog.setStatus("SENT");
             emailLog.setSentAt(OffsetDateTime.now());
@@ -347,19 +93,237 @@ public class EmailService {
         } catch (Exception e) {
             emailLog.setStatus("FAILED");
             emailLog.setErrorMessage(e.getMessage());
-            log.error("Failed to send email to {}: {}", to, e.getMessage());
-        } finally {
-            emailLogRepository.save(emailLog);
+            log.error("Brevo email failed: {}", e.getMessage());
         }
+
+        emailLogRepository.save(emailLog);
     }
 
-    /**
-     * Calculate session duration
-     */
+    /* ============================================================
+       APPOINTMENT METHODS
+       ============================================================ */
+
+    @Async
+    public void sendAppointmentConfirmationToPatient(
+            Appointment appointment,
+            Patient patient,
+            Doctor doctor
+    ) {
+
+        Context context = new Context();
+        context.setVariable("patientName", patient.getUser().getFullName());
+        context.setVariable("doctorName", doctor.getUser().getFullName());
+        context.setVariable("specialization", doctor.getSpecialization());
+        context.setVariable("appointmentDate",
+                appointment.getScheduledAt().format(DATE_FORMATTER));
+        context.setVariable("appointmentTime",
+                appointment.getScheduledAt().format(TIME_FORMATTER));
+        context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
+
+        String htmlContent =
+                templateEngine.process("email/appointment-booked-patient", context);
+
+        sendEmail(
+                patient.getUser().getEmail(),
+                "Appointment Confirmed - mindcareX",
+                htmlContent,
+                "APPOINTMENT_BOOKED",
+                appointment.getId(),
+                null
+        );
+    }
+
+    @Async
+    public void sendAppointmentNotificationToDoctor(
+            Appointment appointment,
+            Patient patient,
+            Doctor doctor
+    ) {
+
+        Context context = new Context();
+        context.setVariable("doctorName", doctor.getUser().getFullName());
+        context.setVariable("patientName", patient.getUser().getFullName());
+        context.setVariable("appointmentDate",
+                appointment.getScheduledAt().format(DATE_FORMATTER));
+        context.setVariable("appointmentTime",
+                appointment.getScheduledAt().format(TIME_FORMATTER));
+        context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
+
+        String htmlContent =
+                templateEngine.process("email/appointment-booked-doctor", context);
+
+        sendEmail(
+                doctor.getUser().getEmail(),
+                "New Appointment Scheduled - mindcareX",
+                htmlContent,
+                "APPOINTMENT_BOOKED",
+                appointment.getId(),
+                null
+        );
+    }
+
+    /* ============================================================
+       SESSION METHODS
+       ============================================================ */
+
+    @Async
+    public void sendSessionReminder(
+            Appointment appointment,
+            User recipient,
+            User otherParticipant,
+            UUID sessionId
+    ) {
+
+        Context context = new Context();
+        context.setVariable("recipientName", recipient.getFullName());
+        context.setVariable("otherParticipant", otherParticipant.getFullName());
+        context.setVariable("appointmentDate",
+                appointment.getScheduledAt().format(DATE_FORMATTER));
+        context.setVariable("appointmentTime",
+                appointment.getScheduledAt().format(TIME_FORMATTER));
+        context.setVariable("sessionUrl",
+                frontendUrl + "/video-session/" + sessionId);
+
+        String htmlContent =
+                templateEngine.process("email/session-reminder", context);
+
+        sendEmail(
+                recipient.getEmail(),
+                "Session Starting Soon - mindcareX",
+                htmlContent,
+                "SESSION_REMINDER",
+                appointment.getId(),
+                sessionId
+        );
+    }
+
+    @Async
+    public void sendSessionSummary(
+            Session session,
+            User recipient,
+            String aiSummary,
+            List<String> keyPoints,
+            String recommendations,
+            String nextSteps
+    ) {
+
+        Context context = new Context();
+        context.setVariable("recipientName", recipient.getFullName());
+        context.setVariable("duration", calculateDuration(session));
+        context.setVariable("sessionDate",
+                session.getStartedAt().format(DATE_FORMATTER));
+        context.setVariable("aiSummary", aiSummary);
+        context.setVariable("keyPoints", keyPoints);
+        context.setVariable("recommendations", recommendations);
+        context.setVariable("nextSteps", nextSteps);
+        context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
+
+        String htmlContent =
+                templateEngine.process("email/session-summary", context);
+
+        sendEmail(
+                recipient.getEmail(),
+                "Session Summary - mindcareX",
+                htmlContent,
+                "SESSION_SUMMARY",
+                session.getAppointment().getId(),
+                session.getId()
+        );
+    }
+
+
+    @Async
+    public void sendAppointmentCancellation(
+            Appointment appointment,
+            User recipient,
+            User otherParticipant,
+            String cancellationReason
+    ) {
+
+        Context context = new Context();
+        context.setVariable("recipientName", recipient.getFullName());
+        context.setVariable("otherParticipant", otherParticipant.getFullName());
+        context.setVariable("appointmentDate",
+                appointment.getScheduledAt().format(DATE_FORMATTER));
+        context.setVariable("appointmentTime",
+                appointment.getScheduledAt().format(TIME_FORMATTER));
+        context.setVariable("cancellationReason", cancellationReason);
+        context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
+
+        String htmlContent =
+                templateEngine.process("email/appointment-cancelled", context);
+
+        sendEmail(
+                recipient.getEmail(),
+                "Appointment Cancelled - mindcareX",
+                htmlContent,
+                "APPOINTMENT_CANCELLED",
+                appointment.getId(),
+                null
+        );
+    }
+
+    @Async
+    public void sendSessionSummaryToGuardian(
+            Session session,
+            Patient patient,
+            String aiSummary,
+            List<String> keyPoints,
+            String recommendations
+    ) {
+
+        if (patient.getEmergencyContactEmail() == null) return;
+
+        Context context = new Context();
+        context.setVariable("recipientName", patient.getEmergencyContactName());
+        context.setVariable("patientName", patient.getUser().getFullName());
+        context.setVariable("relation", patient.getEmergencyContactRelation());
+        context.setVariable("duration", calculateDuration(session));
+        context.setVariable("sessionDate",
+                session.getStartedAt().format(DATE_FORMATTER));
+        context.setVariable("aiSummary", aiSummary);
+        context.setVariable("keyPoints", keyPoints);
+        context.setVariable("recommendations", recommendations);
+        context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
+
+        String htmlContent =
+                templateEngine.process("email/guardian-session-summary", context);
+
+        sendEmail(
+                patient.getEmergencyContactEmail(),
+                "Session Update for " + patient.getUser().getFullName(),
+                htmlContent,
+                "GUARDIAN_NOTIFICATION",
+                session.getAppointment().getId(),
+                session.getId()
+        );
+    }
+
+    /* ============================================================
+       RESEND + STATS
+       ============================================================ */
+
+    @Async
+    public void resendEmail(EmailLog emailLog) {
+
+        String htmlContent = templateEngine.process(
+                "email/generic-resend",
+                new Context()
+        );
+
+        sendEmail(
+                emailLog.getRecipient(),
+                emailLog.getSubject(),
+                htmlContent,
+                emailLog.getEmailType(),
+                emailLog.getAppointmentId(),
+                emailLog.getSessionId()
+        );
+    }
+
     private String calculateDuration(Session session) {
-        if (session.getEndedAt() == null) {
-            return "In Progress";
-        }
+
+        if (session.getEndedAt() == null) return "In Progress";
 
         long minutes = java.time.Duration.between(
                 session.getStartedAt(),
@@ -369,16 +333,10 @@ public class EmailService {
         return minutes + " min";
     }
 
-    /**
-     * Get email history for a user
-     */
     public List<EmailLog> getEmailHistory(String email) {
         return emailLogRepository.findByRecipientOrderByCreatedAtDesc(email);
     }
 
-    /**
-     * Get email statistics
-     */
     public Map<String, Long> getEmailStatistics() {
         return Map.of(
                 "total", emailLogRepository.count(),
@@ -386,95 +344,5 @@ public class EmailService {
                 "failed", emailLogRepository.countByStatus("FAILED"),
                 "pending", emailLogRepository.countByStatus("PENDING")
         );
-    }
-    /**
-     * Resend a failed email
-     */
-    @Async
-    public void resendEmail(EmailLog emailLog) {
-        try {
-            log.info("Attempting to resend email: {}", emailLog.getId());
-
-            // Recreate the HTML content based on email type
-            String htmlContent = recreateEmailContent(emailLog);
-
-            if (htmlContent == null) {
-                log.error("Cannot recreate email content for type: {}", emailLog.getEmailType());
-                return;
-            }
-
-            // Send the email
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-
-            helper.setFrom(fromEmail, "mindcareX");
-            helper.setTo(emailLog.getRecipient());
-            helper.setSubject(emailLog.getSubject());
-            helper.setText(htmlContent, true);
-
-            mailSender.send(message);
-
-            // Update status to SENT
-            emailLog.setStatus("SENT");
-            emailLog.setSentAt(OffsetDateTime.now());
-            emailLog.setErrorMessage(null);
-            emailLogRepository.save(emailLog);
-
-            log.info("Successfully resent email: {}", emailLog.getId());
-
-        } catch (Exception e) {
-            emailLog.setStatus("FAILED");
-            emailLog.setErrorMessage("Resend failed: " + e.getMessage());
-            emailLogRepository.save(emailLog);
-            log.error("Failed to resend email: {}", emailLog.getId(), e);
-        }
-    }
-
-    /**
-     * Recreate email content from log (simplified version)
-     */
-    private String recreateEmailContent(EmailLog emailLog) {
-        // For simplicity, create a generic message
-        // In production, you'd need to fetch appointment/session data and recreate properly
-
-        Context context = new Context();
-        context.setVariable("recipientName", "User");
-        context.setVariable("message", "This is a resent notification from mindcareX");
-        context.setVariable("emailType", emailLog.getEmailType());
-        context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
-
-        return templateEngine.process("email/generic-resend", context);
-    }
-
-    /**
-     * Send test email
-     */
-    @Async
-    public void sendTestEmail(String recipientEmail) {
-        try {
-            Context context = new Context();
-            context.setVariable("recipientName", recipientEmail);
-            context.setVariable("testMessage", "This is a test email from mindcareX email notification system.");
-            context.setVariable("timestamp", OffsetDateTime.now().format(
-                    DateTimeFormatter.ofPattern("MMMM dd, yyyy 'at' hh:mm a")
-            ));
-            context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
-
-            String htmlContent = templateEngine.process("email/test-email", context);
-
-            sendEmail(
-                    recipientEmail,
-                    "Test Email - mindcareX Email System",
-                    htmlContent,
-                    "TEST_EMAIL",
-                    null,
-                    null
-            );
-
-            log.info("Test email sent to: {}", recipientEmail);
-
-        } catch (Exception e) {
-            log.error("Failed to send test email to: {}", recipientEmail, e);
-        }
     }
 }
