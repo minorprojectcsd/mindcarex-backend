@@ -1,6 +1,7 @@
 package com.mindcarex.mindcarex.controller;
 
 import com.mindcarex.mindcarex.entity.EmailLog;
+import com.mindcarex.mindcarex.repository.EmailLogRepository;
 import com.mindcarex.mindcarex.service.EmailService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
