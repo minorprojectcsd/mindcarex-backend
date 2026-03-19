@@ -30,7 +30,6 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
-                // Stateless API
                 .csrf(csrf -> csrf.disable())
 
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -73,11 +72,9 @@ public class SecurityConfig {
                                 "/api/notifications/test"
                         ).authenticated()
 
-                        // Everything else
                         .anyRequest().authenticated()
                 )
 
-                // Add JWT filter
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -88,13 +85,10 @@ public class SecurityConfig {
 
         CorsConfiguration config = new CorsConfiguration();
 
-        String allowedOrigins = System.getenv("ALLOWED_ORIGINS");
-
-        if (allowedOrigins != null && !allowedOrigins.isBlank()) {
-            config.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
-        } else {
-            config.setAllowedOrigins(List.of("http://localhost:5173"));
-        }
+        // ── Allow all origins (development mode) ──────────────────────────────
+        // TODO: Before production, replace with your actual Vercel URL:
+        //   config.setAllowedOrigins(List.of("https://inner-harmony-hub-xi.vercel.app"));
+        config.setAllowedOriginPatterns(List.of("*"));
 
         config.setAllowedMethods(Arrays.asList(
                 "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
@@ -108,6 +102,7 @@ public class SecurityConfig {
                 "X-Requested-With"
         ));
 
+        // allowCredentials(true) works with setAllowedOriginPatterns but NOT with setAllowedOrigins("*")
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
