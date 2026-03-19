@@ -37,7 +37,7 @@ public class SessionController {
             return ResponseEntity.status(403).body("Only doctor can start session");
         }
 
-        Doctor doctor = doctorRepo.findByUserId(user.getId())  // ⭐ FIXED
+        Doctor doctor = doctorRepo.findByUserId(user.getId())
                 .orElseThrow(() -> new RuntimeException("Doctor profile missing"));
 
         Appointment appointment = appointmentRepo.findById(appointmentId)
@@ -150,14 +150,18 @@ public class SessionController {
         return ResponseEntity.ok("Session ended");
     }
 
+    // ── FIX: compare user.getId() against doctor.getUser().getId()
+    //         and patient.getUser().getId() — not doctor.getId() / patient.getId()
+    //         because doctor.getId() is the Doctor profile UUID, not the User UUID
     private boolean isSessionParticipant(Session session, Authentication auth) {
         User user = userRepo.findByEmail(auth.getName()).orElseThrow();
 
         Doctor doctor = session.getAppointment().getDoctor();
         Patient patient = session.getAppointment().getPatient();
 
-        UUID doctorUserId = doctor.getId();
-        UUID patientUserId = patient.getId();
+        // Get the USER ID linked to doctor and patient profiles
+        UUID doctorUserId  = doctor.getUser().getId();   // ✅ fixed
+        UUID patientUserId = patient.getUser().getId();  // ✅ fixed
 
         return user.getId().equals(doctorUserId) || user.getId().equals(patientUserId);
     }
