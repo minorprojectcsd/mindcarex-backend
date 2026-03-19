@@ -42,4 +42,4 @@ management:
 
 logging:
   level:
-    root: INFOs
+    root: INFO
