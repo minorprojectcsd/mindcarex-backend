@@ -5,20 +5,11 @@ spring:
     password: ${DATABASE_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 5aspring:
-  datasource:
-    url: ${DATABASE_URL}
-    username: ${DATABASE_USERNAME}
-    password: ${DATABASE_PASSWORD}
-    driver-class-name: org.postgresql.Driver
-    hikari:
       maximum-pool-size: 5
       minimum-idle: 2
-
   app:
     frontend:
       url: https://mindcarex.vercel.app
-
   jpa:
     hibernate:
       ddl-auto: validate
@@ -28,7 +19,6 @@ spring:
         jdbc:
           time_zone: UTC
         format_sql: false
-
   data:
     mongodb:
       uri: ${MONGODB_URI}
@@ -41,7 +31,6 @@ jwt:
   secret: ${JWT_SECRET}
   expiration: 86400000
 
-# ── Actuator — expose health endpoint publicly ─────────────────────────────
 management:
   endpoints:
     web:
@@ -53,43 +42,4 @@ management:
 
 logging:
   level:
-    root: INFO
-      minimum-idle: 2
-
-  app:
-    frontend:
-      url: https://mindcarex.vercel.app
-
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    show-sql: false
-    properties:
-      hibernate:
-        jdbc:
-          time_zone: UTC
-        format_sql: false
-
-  data:
-    mongodb:
-      uri: ${MONGODB_URI}
-      auto-index-creation: true
-
-# ✅ CRITICAL FIX (Render)
-server:
-  port: ${PORT}
-
-# ✅ Actuator exposure
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health
-
-jwt:
-  secret: ${JWT_SECRET}
-  expiration: 86400000
-
-logging:
-  level:
-    root: INFO
+    root: INFOs
