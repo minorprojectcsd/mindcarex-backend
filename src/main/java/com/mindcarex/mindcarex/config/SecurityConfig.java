@@ -46,6 +46,9 @@ public class SecurityConfig {
                         // ✅ Public endpoints
                         .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
 
+                        // ✅ Health check
+                        .requestMatchers("/health", "/actuator/**").permitAll()
+
                         // ✅ WebSocket endpoints
                         .requestMatchers("/ws/**", "/topic/**", "/app/**").permitAll()
 
