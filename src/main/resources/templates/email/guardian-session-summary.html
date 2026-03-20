@@ -2,6 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Session Update</title>
     <style>
         body {
@@ -24,71 +25,134 @@
             text-align: center;
             border-radius: 12px 12px 0 0;
         }
-        .content {
-            padding: 30px;
+        .header h1 { margin: 0; font-size: 26px; }
+        .header p  { margin: 8px 0 0; opacity: 0.85; font-size: 14px; }
+        .content { padding: 30px; }
+        .meta-box {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
         }
+        .meta-box p { margin: 6px 0; font-size: 14px; color: #495057; }
+        .ai-message-box {
+            background: #eef2ff;
+            border: 1px solid #c7d2fe;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .ai-message-box h3 {
+            margin: 0 0 12px;
+            color: #4338ca;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .ai-message-box p {
+            margin: 0;
+            color: #374151;
+            font-size: 14px;
+            line-height: 1.7;
+            white-space: pre-line;
+        }
+        /* Fallback boxes when no AI message */
         .summary-box {
             background: #f8f9fa;
             border-left: 4px solid #667eea;
-            padding: 15px;
+            padding: 15px 20px;
             margin: 15px 0;
             border-radius: 4px;
+        }
+        .summary-box h3 { margin-top: 0; color: #495057; font-size: 15px; }
+        .summary-box p  { margin: 0; font-size: 14px; color: #212529; line-height: 1.6; }
+        .privacy-note {
+            background: #fff8e1;
+            border: 1px solid #ffe082;
+            border-radius: 6px;
+            padding: 12px 16px;
+            margin-top: 24px;
+            font-size: 13px;
+            color: #795548;
         }
         .footer {
             background: #f8f9fa;
             padding: 20px;
             text-align: center;
             color: #6c757d;
-            font-size: 14px;
+            font-size: 13px;
             border-radius: 0 0 12px 12px;
         }
     </style>
 </head>
 <body>
 <div class="container">
+
     <div class="header">
-        <h1>Mental Health Session Update</h1>
+        <h1>🧠 Mental Health Session Update</h1>
+        <p>An update regarding your family member's consultation</p>
     </div>
 
     <div class="content">
-        <p>Dear <strong th:text="${recipientName}">Guardian</strong>,</p>
 
-        <p>This is an update regarding <strong th:text="${patientName}">Patient</strong>'s mental health consultation session.</p>
-
-        <p style="color: #6c757d; font-size: 14px;">
-            You are receiving this as their emergency contact (<span th:text="${relation}">relation</span>).
+        <p style="font-size:15px;color:#333;">
+            Dear <strong th:text="${recipientName}">Guardian</strong>,
         </p>
 
-        <div class="summary-box">
-            <p><strong>Session Date:</strong> <span th:text="${sessionDate}">Date</span></p>
-            <p><strong>Duration:</strong> <span th:text="${duration}">Duration</span></p>
-        </div>
-
-        <!-- UPDATED — shows AI guardian message if available, falls back to manual -->
-        <div class="summary-box" th:if="${guardianMessage}">
-            <h3 style="margin-top: 0;">Session Update</h3>
-            <p th:text="${guardianMessage}">AI generated message for guardian</p>
-        </div>
-        
-        <div class="summary-box" th:if="${not guardianMessage and aiSummary}">
-            <h3 style="margin-top: 0;">Session Summary</h3>
-            <p th:text="${aiSummary}">Summary</p>
-        </div>
-        
-        <div class="summary-box" th:if="${not guardianMessage and recommendations}">
-            <h3 style="margin-top: 0;">Doctor's Recommendations</h3>
-            <p th:text="${recommendations}">Recommendations</p>
-        </div>
-
-        <p style="color: #6c757d; font-size: 14px; margin-top: 30px;">
-            <strong>Privacy Notice:</strong> This information is shared with you as an emergency contact. Please treat it confidentially and discuss with the patient directly if you have concerns.
+        <p style="color:#555;font-size:14px;">
+            This is an update regarding
+            <strong th:text="${patientName}">Patient</strong>'s
+            mental health consultation session.
+            You are receiving this as their
+            <span th:text="${relation}">emergency contact</span>.
         </p>
+
+        <!-- Session meta -->
+        <div class="meta-box">
+            <p>📅 <strong>Session Date:</strong>
+                <span th:text="${sessionDate}">Date</span></p>
+            <p>⏱️ <strong>Duration:</strong>
+                <span th:text="${duration}">Duration</span></p>
+        </div>
+
+        <!-- AI-generated guardian message (from svc2 Groq LLaMA) -->
+        <div class="ai-message-box" th:if="${guardianMessage}">
+            <h3>📋 Session Update from the Care Team</h3>
+            <p th:text="${guardianMessage}">AI guardian message will appear here.</p>
+        </div>
+
+        <!-- Fallback: manual summary if no AI message -->
+        <div th:if="${not #strings.isEmpty(aiSummary)} and ${guardianMessage == null or #strings.isEmpty(guardianMessage)}">
+            <div class="summary-box">
+                <h3>📝 Session Summary</h3>
+                <p th:text="${aiSummary}">Summary</p>
+            </div>
+        </div>
+
+        <div th:if="${not #strings.isEmpty(recommendations)} and ${guardianMessage == null or #strings.isEmpty(guardianMessage)}">
+            <div class="summary-box">
+                <h3>💡 Doctor's Recommendations</h3>
+                <p th:text="${recommendations}">Recommendations</p>
+            </div>
+        </div>
+
+        <!-- Privacy notice -->
+        <div class="privacy-note">
+            <strong>🔒 Privacy Notice:</strong>
+            This information is shared with you as an emergency contact.
+            Please treat it confidentially and speak with
+            <span th:text="${patientName}">the patient</span> directly if you have any concerns.
+        </div>
+
     </div>
 
     <div class="footer">
-        <p><strong>mindcareX</strong> - Mental Health Platform</p>
-        <p>This is an automated notification. Do not reply to this email.</p>
+        <p><strong>mindcareX</strong> — Mental Health Platform</p>
+        <p>This is an automated notification. Please do not reply to this email.</p>
     </div>
+
 </div>
 </body>
 </html>
