@@ -8,10 +8,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.client.RestTemplate;
 
 @RestController
 @RequestMapping("/api/sessions")
@@ -25,6 +29,9 @@ public class SessionController {
     private final PatientRepository patientRepo;
     private final ChatMessageRepository chatMessageRepo;
     private final EmailService emailService;
+
+    @Value("${REPORT_API_URL:https://mindcarex-report-api.onrender.com}")
+    private String reportApiUrl;
 
     @PostMapping("/{appointmentId}/start")
     public ResponseEntity<?> startSession(
@@ -143,11 +150,31 @@ public class SessionController {
             );
 
             emailService.sendSessionSummaryToGuardian(
-                    session, patient, aiSummary, keyPoints, recommendations
+                    session, patient, aiSummary, keyPoints, recommendations,
+                    fetchGuardianMessage(session.getId())
             );
         }
 
         return ResponseEntity.ok("Session ended");
+    }
+
+    // ── Fetch AI guardian message from svc2 ──────────────────────────────────
+    // Returns null gracefully if svc2 is unavailable or report not yet generated
+    private String fetchGuardianMessage(UUID sessionId) {
+        try {
+            RestTemplate rest = new RestTemplate();
+            String url = reportApiUrl + "/api/report/" + sessionId;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = rest.getForObject(url, Map.class);
+            if (response == null) return null;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) response.get("data");
+            if (data == null) return null;
+            return (String) data.get("guardian_message");
+        } catch (Exception e) {
+            // svc2 not available or report not generated yet — fall back to manual
+            return null;
+        }
     }
 
     // ── FIX: compare user.getId() against doctor.getUser().getId()
