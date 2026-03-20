@@ -64,12 +64,18 @@
             <p><strong>Duration:</strong> <span th:text="${duration}">Duration</span></p>
         </div>
 
-        <div class="summary-box" th:if="${aiSummary}">
+        <!-- UPDATED — shows AI guardian message if available, falls back to manual -->
+        <div class="summary-box" th:if="${guardianMessage}">
+            <h3 style="margin-top: 0;">Session Update</h3>
+            <p th:text="${guardianMessage}">AI generated message for guardian</p>
+        </div>
+        
+        <div class="summary-box" th:if="${not guardianMessage and aiSummary}">
             <h3 style="margin-top: 0;">Session Summary</h3>
             <p th:text="${aiSummary}">Summary</p>
         </div>
-
-        <div class="summary-box" th:if="${recommendations}">
+        
+        <div class="summary-box" th:if="${not guardianMessage and recommendations}">
             <h3 style="margin-top: 0;">Doctor's Recommendations</h3>
             <p th:text="${recommendations}">Recommendations</p>
         </div>
