@@ -31,13 +31,10 @@ public class SecurityConfig {
 
         http
                 .csrf(csrf -> csrf.disable())
-
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
-
                 .authorizeHttpRequests(auth -> auth
 
                         // ✅ Allow preflight
@@ -77,7 +74,6 @@ public class SecurityConfig {
 
                         .anyRequest().authenticated()
                 )
-
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -88,10 +84,20 @@ public class SecurityConfig {
 
         CorsConfiguration config = new CorsConfiguration();
 
-        // ── Allow all origins (development mode) ──────────────────────────────
-        // TODO: Before production, replace with your actual Vercel URL:
-        //   config.setAllowedOrigins(List.of("https://inner-harmony-hub-xi.vercel.app"));
-        config.setAllowedOriginPatterns(List.of("*"));
+        // ── Read allowed origins from env var ─────────────────────────────────
+        // Set in Render: ALLOWED_ORIGINS=https://mindcarex.vercel.app,https://inner-harmony-hub-xi.vercel.app,http://localhost:5173
+        // Falls back to localhost only if env var not set
+        String allowedOriginsEnv = System.getenv("ALLOWED_ORIGINS");
+
+        if (allowedOriginsEnv != null && !allowedOriginsEnv.isBlank()) {
+            // Use setAllowedOriginPatterns so credentials=true works with specific URLs
+            config.setAllowedOriginPatterns(
+                Arrays.asList(allowedOriginsEnv.split(","))
+            );
+        } else {
+            // Local dev fallback
+            config.setAllowedOriginPatterns(List.of("http://localhost:5173"));
+        }
 
         config.setAllowedMethods(Arrays.asList(
                 "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
@@ -105,7 +111,7 @@ public class SecurityConfig {
                 "X-Requested-With"
         ));
 
-        // allowCredentials(true) works with setAllowedOriginPatterns but NOT with setAllowedOrigins("*")
+        // Works with setAllowedOriginPatterns (not setAllowedOrigins)
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
