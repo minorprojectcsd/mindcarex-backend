@@ -98,7 +98,7 @@ public class EmailService {
     }
 
     /* ============================================================
-       APPOINTMENT METHODS
+       APPOINTMENT METHODS - ORIGINAL (Deprecated, kept for compatibility)
        ============================================================ */
 
     @Async
@@ -153,6 +153,147 @@ public class EmailService {
                 "New Appointment Scheduled - mindcareX",
                 htmlContent,
                 "APPOINTMENT_BOOKED",
+                appointment.getId(),
+                null
+        );
+    }
+
+    /* ============================================================
+       NEW APPOINTMENT CONFIRMATION FLOW
+       ============================================================ */
+
+    /**
+     * Step 1: Patient books appointment → Send request confirmation to patient
+     */
+    @Async
+    public void sendAppointmentRequestToPatient(
+            Appointment appointment,
+            Patient patient,
+            Doctor doctor
+    ) {
+        Context context = new Context();
+        context.setVariable("patientName", patient.getUser().getFullName());
+        context.setVariable("doctorName", doctor.getUser().getFullName());
+        context.setVariable("specialization", doctor.getSpecialization());
+        context.setVariable("appointmentDate",
+                appointment.getScheduledAt().format(DATE_FORMATTER));
+        context.setVariable("appointmentTime",
+                appointment.getScheduledAt().format(TIME_FORMATTER));
+        context.setVariable("status", "PENDING - Waiting for doctor confirmation");
+        context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
+
+        String htmlContent =
+                templateEngine.process("email/appointment-request-patient", context);
+
+        sendEmail(
+                patient.getUser().getEmail(),
+                "Appointment Request Sent - mindcareX",
+                htmlContent,
+                "APPOINTMENT_REQUEST",
+                appointment.getId(),
+                null
+        );
+    }
+
+    /**
+     * Step 2: Patient books appointment → Notify doctor to confirm/reject
+     */
+    @Async
+    public void sendAppointmentConfirmationRequestToDoctor(
+            Appointment appointment,
+            Patient patient,
+            Doctor doctor
+    ) {
+        Context context = new Context();
+        context.setVariable("doctorName", doctor.getUser().getFullName());
+        context.setVariable("patientName", patient.getUser().getFullName());
+        context.setVariable("patientAge", patient.getAge());
+        context.setVariable("patientGender", patient.getGender());
+        context.setVariable("appointmentDate",
+                appointment.getScheduledAt().format(DATE_FORMATTER));
+        context.setVariable("appointmentTime",
+                appointment.getScheduledAt().format(TIME_FORMATTER));
+        context.setVariable("notes", appointment.getNotes() != null ? appointment.getNotes() : "No notes provided");
+        context.setVariable("appointmentId", appointment.getId().toString());
+        context.setVariable("confirmUrl", frontendUrl + "/appointments/" + appointment.getId() + "/confirm");
+        context.setVariable("rejectUrl", frontendUrl + "/appointments/" + appointment.getId() + "/reject");
+        context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
+
+        String htmlContent =
+                templateEngine.process("email/appointment-confirmation-request-doctor", context);
+
+        sendEmail(
+                doctor.getUser().getEmail(),
+                "New Appointment Request - Action Required - mindcareX",
+                htmlContent,
+                "APPOINTMENT_CONFIRMATION_REQUEST",
+                appointment.getId(),
+                null
+        );
+    }
+
+    /**
+     * Step 3a: Doctor confirms → Notify patient
+     */
+    @Async
+    public void sendAppointmentConfirmedToPatient(
+            Appointment appointment,
+            Patient patient,
+            Doctor doctor
+    ) {
+        Context context = new Context();
+        context.setVariable("patientName", patient.getUser().getFullName());
+        context.setVariable("doctorName", doctor.getUser().getFullName());
+        context.setVariable("specialization", doctor.getSpecialization());
+        context.setVariable("appointmentDate",
+                appointment.getScheduledAt().format(DATE_FORMATTER));
+        context.setVariable("appointmentTime",
+                appointment.getScheduledAt().format(TIME_FORMATTER));
+        context.setVariable("clinicAddress", doctor.getClinicAddress() != null ? 
+                doctor.getClinicAddress() : "Virtual Session");
+        context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
+
+        String htmlContent =
+                templateEngine.process("email/appointment-confirmed-patient", context);
+
+        sendEmail(
+                patient.getUser().getEmail(),
+                "✓ Appointment Confirmed by Doctor - mindcareX",
+                htmlContent,
+                "APPOINTMENT_CONFIRMED",
+                appointment.getId(),
+                null
+        );
+    }
+
+    /**
+     * Step 3b: Doctor rejects → Notify patient with reason
+     */
+    @Async
+    public void sendAppointmentRejectedToPatient(
+            Appointment appointment,
+            Patient patient,
+            Doctor doctor,
+            String reason
+    ) {
+        Context context = new Context();
+        context.setVariable("patientName", patient.getUser().getFullName());
+        context.setVariable("doctorName", doctor.getUser().getFullName());
+        context.setVariable("appointmentDate",
+                appointment.getScheduledAt().format(DATE_FORMATTER));
+        context.setVariable("appointmentTime",
+                appointment.getScheduledAt().format(TIME_FORMATTER));
+        context.setVariable("reason", reason != null ? reason : "Doctor unavailable at this time");
+        context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
+
+        String htmlContent =
+                templateEngine.process("email/appointment-rejected-patient", context);
+
+        sendEmail(
+                patient.getUser().getEmail(),
+                "Appointment Request Declined - mindcareX",
+                htmlContent,
+                "APPOINTMENT_REJECTED",
                 appointment.getId(),
                 null
         );
@@ -255,9 +396,6 @@ public class EmailService {
         );
     }
 
-    // ── UPDATED: added guardianMessage param (AI-generated by svc2 Groq LLaMA)
-    // guardianMessage = plain-language update for parent/guardian
-    // Falls back to aiSummary + recommendations if guardianMessage is null
     @Async
     public void sendSessionSummaryToGuardian(
             Session session,
@@ -265,21 +403,21 @@ public class EmailService {
             String aiSummary,
             List<String> keyPoints,
             String recommendations,
-            String guardianMessage   // ← NEW: from svc2 report_generator
+            String guardianMessage
     ) {
         if (patient.getEmergencyContactEmail() == null) return;
 
         Context context = new Context();
-        context.setVariable("recipientName",  patient.getEmergencyContactName());
-        context.setVariable("patientName",    patient.getUser().getFullName());
-        context.setVariable("relation",       patient.getEmergencyContactRelation());
-        context.setVariable("duration",       calculateDuration(session));
-        context.setVariable("sessionDate",    session.getStartedAt().format(DATE_FORMATTER));
-        context.setVariable("aiSummary",      aiSummary);
-        context.setVariable("keyPoints",      keyPoints);
+        context.setVariable("recipientName", patient.getEmergencyContactName());
+        context.setVariable("patientName", patient.getUser().getFullName());
+        context.setVariable("relation", patient.getEmergencyContactRelation());
+        context.setVariable("duration", calculateDuration(session));
+        context.setVariable("sessionDate", session.getStartedAt().format(DATE_FORMATTER));
+        context.setVariable("aiSummary", aiSummary);
+        context.setVariable("keyPoints", keyPoints);
         context.setVariable("recommendations", recommendations);
-        context.setVariable("guardianMessage", guardianMessage);   // ← NEW
-        context.setVariable("dashboardUrl",   frontendUrl + "/dashboard");
+        context.setVariable("guardianMessage", guardianMessage);
+        context.setVariable("dashboardUrl", frontendUrl + "/dashboard");
 
         String htmlContent =
                 templateEngine.process("email/guardian-session-summary", context);
@@ -360,9 +498,9 @@ public class EmailService {
 
     public Map<String, Long> getEmailStatistics() {
         return Map.of(
-                "total",   emailLogRepository.count(),
-                "sent",    emailLogRepository.countByStatus("SENT"),
-                "failed",  emailLogRepository.countByStatus("FAILED"),
+                "total", emailLogRepository.count(),
+                "sent", emailLogRepository.countByStatus("SENT"),
+                "failed", emailLogRepository.countByStatus("FAILED"),
                 "pending", emailLogRepository.countByStatus("PENDING")
         );
     }
