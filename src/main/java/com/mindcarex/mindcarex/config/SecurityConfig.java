@@ -39,29 +39,32 @@ public class SecurityConfig {
 
                         // ✅ Allow preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
+                
                         // ✅ Public endpoints
                         .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
-
+                
                         // ✅ Health check
                         .requestMatchers("/health", "/actuator/**").permitAll()
-
+                
                         // ✅ WebSocket endpoints
                         .requestMatchers("/ws/**", "/topic/**", "/app/**").permitAll()
-
+                
                         // ✅ Admin-only endpoints
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-
+                
                         // ✅ Email statistics (Doctor + Admin)
                         .requestMatchers("/api/notifications/statistics")
                         .hasAnyRole("DOCTOR", "ADMIN")
-
+                
                         // ✅ Doctor-only endpoints
                         .requestMatchers("/api/doctor/**").hasRole("DOCTOR")
-
+                
                         // ✅ Patient-only endpoints
                         .requestMatchers("/api/patient/**").hasRole("PATIENT")
-
+                
+                        // 🔥 NEW: Patient details endpoint (Doctor + Admin can view patient info)
+                        .requestMatchers("/api/patients/**").hasAnyRole("DOCTOR", "ADMIN")
+                
                         // ✅ Authenticated endpoints
                         .requestMatchers(
                                 "/api/appointments/**",
@@ -71,7 +74,7 @@ public class SecurityConfig {
                                 "/api/notifications/history",
                                 "/api/notifications/test"
                         ).authenticated()
-
+                
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
