@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <h2 style="color: #2563eb;">New Appointment Request</h2>
+    
+    <p>Dear Dr. <strong th:text="${doctorName}">Doctor</strong>,</p>
+    
+    <p>You have a new appointment request that requires your action.</p>
+    
+    <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+        <p><strong>Patient:</strong> <span th:text="${patientName}">Patient</span></p>
+        <p><strong>Age:</strong> <span th:text="${patientAge}">35</span></p>
+        <p><strong>Gender:</strong> <span th:text="${patientGender}">Male</span></p>
+        <p><strong>Requested Date:</strong> <span th:text="${appointmentDate}">Date</span></p>
+        <p><strong>Notes:</strong> <span th:text="${notes}">-</span></p>
+    </div>
+    
+    <div style="text-align: center; margin: 30px 0;">
+        <a th:href="${confirmUrl}" 
+           style="background: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin-right: 10px; display: inline-block;">
+            ✓ Confirm Appointment
+        </a>
+        <a th:href="${rejectUrl}" 
+           style="background: #ef4444; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">
+            ✗ Decline Request
+        </a>
+    </div>
+    
+    <p style="color: #6b7280; font-size: 12px;">Please respond within 24 hours.</p>
+    
+    <p>Best regards,<br>MindCareX Team</p>
+</body>
+</html>
