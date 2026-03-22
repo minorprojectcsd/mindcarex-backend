@@ -8,11 +8,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.net.URI;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.HashMap;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.client.RestTemplate;
@@ -33,6 +33,10 @@ public class SessionController {
     @Value("${REPORT_API_URL:https://mindcarex-report-api.onrender.com}")
     private String reportApiUrl;
 
+    /**
+     * POST /api/sessions/{appointmentId}/start
+     * Doctor starts a session for an appointment
+     */
     @PostMapping("/{appointmentId}/start")
     public ResponseEntity<?> startSession(
             @PathVariable UUID appointmentId,
@@ -74,21 +78,11 @@ public class SessionController {
         ));
     }
 
-    @GetMapping("/{sessionId}")
-    public ResponseEntity<?> getSession(
-            @PathVariable UUID sessionId,
-            Authentication auth
-    ) {
-        Session session = sessionRepo.findById(sessionId)
-                .orElseThrow(() -> new RuntimeException("Session not found"));
-
-        if (!isSessionParticipant(session, auth)) {
-            return ResponseEntity.status(403).body("Not authorized");
-        }
-
-        return ResponseEntity.ok(session);
-    }
-
+    /**
+     * GET /api/sessions/{sessionId}
+     * Returns session details
+     * ACCESSIBLE BY: Doctor OR Patient (if they're part of this session)
+     */
     @GetMapping("/{sessionId}")
     public ResponseEntity<?> getSession(
             @PathVariable UUID sessionId,
@@ -120,16 +114,28 @@ public class SessionController {
             System.out.println("Doctor profile ID: " + doctor.getId());
             System.out.println("Patient profile ID: " + patient.getId());
             
-            // Get user IDs
-            UUID doctorUserId = doctor.getUser().getId();
-            UUID patientUserId = patient.getUser().getId();
+            // Get user IDs - with null checks
+            UUID doctorUserId = null;
+            UUID patientUserId = null;
             
-            System.out.println("Doctor USER ID: " + doctorUserId);
-            System.out.println("Patient USER ID: " + patientUserId);
+            try {
+                doctorUserId = doctor.getUser().getId();
+                System.out.println("Doctor USER ID: " + doctorUserId);
+            } catch (NullPointerException e) {
+                System.out.println("⚠️ Doctor user is NULL!");
+            }
+            
+            try {
+                patientUserId = patient.getUser().getId();
+                System.out.println("Patient USER ID: " + patientUserId);
+            } catch (NullPointerException e) {
+                System.out.println("⚠️ Patient user is NULL!");
+            }
+            
             System.out.println("Current user ID: " + user.getId());
             
-            boolean isDoctorMatch = user.getId().equals(doctorUserId);
-            boolean isPatientMatch = user.getId().equals(patientUserId);
+            boolean isDoctorMatch = doctorUserId != null && user.getId().equals(doctorUserId);
+            boolean isPatientMatch = patientUserId != null && user.getId().equals(patientUserId);
             
             System.out.println("Is doctor? " + isDoctorMatch);
             System.out.println("Is patient? " + isPatientMatch);
@@ -137,13 +143,15 @@ public class SessionController {
             if (!isDoctorMatch && !isPatientMatch) {
                 System.out.println("❌ ACCESS DENIED - User is neither doctor nor patient");
                 System.out.println("=== SESSION DEBUG END ===");
+                
+                Map<String, Object> debugInfo = new HashMap<>();
+                debugInfo.put("userId", user.getId().toString());
+                if (doctorUserId != null) debugInfo.put("doctorUserId", doctorUserId.toString());
+                if (patientUserId != null) debugInfo.put("patientUserId", patientUserId.toString());
+                
                 return ResponseEntity.status(403).body(Map.of(
                     "error", "Not authorized",
-                    "debug", Map.of(
-                        "userId", user.getId().toString(),
-                        "doctorUserId", doctorUserId.toString(),
-                        "patientUserId", patientUserId.toString()
-                    )
+                    "debug", debugInfo
                 ));
             }
             
@@ -160,6 +168,31 @@ public class SessionController {
         }
     }
 
+    /**
+     * GET /api/sessions/{sessionId}/chat
+     * Returns chat history for session
+     */
+    @GetMapping("/{sessionId}/chat")
+    public ResponseEntity<?> getChatHistory(
+            @PathVariable UUID sessionId,
+            Authentication auth
+    ) {
+        Session session = sessionRepo.findById(sessionId)
+                .orElseThrow(() -> new RuntimeException("Session not found"));
+
+        if (!isSessionParticipant(session, auth)) {
+            return ResponseEntity.status(403).body("Not authorized");
+        }
+
+        var messages = chatMessageRepo.findBySessionIdOrderByTimestampAsc(sessionId);
+
+        return ResponseEntity.ok(messages);
+    }
+
+    /**
+     * POST /api/sessions/{sessionId}/end
+     * Doctor ends the session
+     */
     @PostMapping("/{sessionId}/end")
     public ResponseEntity<?> endSession(
             @PathVariable UUID sessionId,
@@ -212,8 +245,10 @@ public class SessionController {
         return ResponseEntity.ok("Session ended");
     }
 
-    // ── Fetch AI guardian message from svc2 ──────────────────────────────────
-    // Returns null gracefully if svc2 is unavailable or report not yet generated
+    /**
+     * Fetch AI guardian message from report service
+     * Returns null gracefully if service is unavailable
+     */
     private String fetchGuardianMessage(UUID sessionId) {
         try {
             RestTemplate rest = new RestTemplate();
@@ -226,14 +261,15 @@ public class SessionController {
             if (data == null) return null;
             return (String) data.get("guardian_message");
         } catch (Exception e) {
-            // svc2 not available or report not generated yet — fall back to manual
+            // Service not available or report not generated yet
             return null;
         }
     }
 
-    // ── FIX: compare user.getId() against doctor.getUser().getId()
-    //         and patient.getUser().getId() — not doctor.getId() / patient.getId()
-    //         because doctor.getId() is the Doctor profile UUID, not the User UUID
+    /**
+     * Check if authenticated user is a participant in this session
+     * (either the doctor or the patient)
+     */
     private boolean isSessionParticipant(Session session, Authentication auth) {
         User user = userRepo.findByEmail(auth.getName()).orElseThrow();
 
@@ -241,8 +277,8 @@ public class SessionController {
         Patient patient = session.getAppointment().getPatient();
 
         // Get the USER ID linked to doctor and patient profiles
-        UUID doctorUserId  = doctor.getUser().getId();   // ✅ fixed
-        UUID patientUserId = patient.getUser().getId();  // ✅ fixed
+        UUID doctorUserId = doctor.getUser().getId();
+        UUID patientUserId = patient.getUser().getId();
 
         return user.getId().equals(doctorUserId) || user.getId().equals(patientUserId);
     }
