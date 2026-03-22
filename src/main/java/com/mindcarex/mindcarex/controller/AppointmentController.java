@@ -14,6 +14,7 @@ import java.util.*;
 @RestController
 @RequestMapping("/api/appointments")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "*")
 public class AppointmentController {
 
     private final AppointmentRepository appointmentRepo;
@@ -21,13 +22,11 @@ public class AppointmentController {
     private final PatientRepository patientRepo;
     private final UserRepository userRepo;
     private final SessionRepository sessionRepo;
-    private final EmailService emailService;  // ⭐ ADD THIS
+    private final EmailService emailService;
 
+    // ✅ CREATE → now PENDING (updated)
     @PostMapping
-    public ResponseEntity<?> create(
-            @RequestBody Map<String, String> req,
-            Authentication auth
-    ) {
+    public ResponseEntity<?> create(@RequestBody Map<String, String> req, Authentication auth) {
         try {
             User user = userRepo.findByEmail(auth.getName())
                     .orElseThrow(() -> new RuntimeException("User not found"));
@@ -39,28 +38,8 @@ public class AppointmentController {
             Patient patient = patientRepo.findByUserId(user.getId())
                     .orElseThrow(() -> new RuntimeException("Patient profile missing"));
 
-            if (req.get("doctorId") == null || req.get("doctorId").isEmpty()) {
-                return ResponseEntity.badRequest().body("doctorId is required");
-            }
-
-            if (req.get("startTime") == null || req.get("startTime").isEmpty()) {
-                return ResponseEntity.badRequest().body("startTime is required");
-            }
-
-            UUID doctorId;
-            try {
-                doctorId = UUID.fromString(req.get("doctorId"));
-            } catch (IllegalArgumentException e) {
-                return ResponseEntity.badRequest().body("Invalid doctorId format");
-            }
-
-            OffsetDateTime startTime;
-            try {
-                startTime = OffsetDateTime.parse(req.get("startTime"));
-            } catch (Exception e) {
-                return ResponseEntity.badRequest()
-                        .body("Invalid date format. Use ISO-8601");
-            }
+            UUID doctorId = UUID.fromString(req.get("doctorId"));
+            OffsetDateTime startTime = OffsetDateTime.parse(req.get("startTime"));
 
             Doctor doctor = doctorRepo.findById(doctorId)
                     .orElseThrow(() -> new RuntimeException("Doctor not found"));
@@ -69,29 +48,104 @@ public class AppointmentController {
                     .doctor(doctor)
                     .patient(patient)
                     .scheduledAt(startTime)
-                    .status("BOOKED")
+                    .status("PENDING") // 🔥 changed
                     .notes(req.get("notes"))
                     .build();
 
             appointmentRepo.save(appt);
 
-            // ⭐ SEND CONFIRMATION EMAILS
-            emailService.sendAppointmentConfirmationToPatient(appt, patient, doctor);
-            emailService.sendAppointmentNotificationToDoctor(appt, patient, doctor);
+            // 🔥 updated emails
+            emailService.sendAppointmentRequestToPatient(appt, patient, doctor);
+            emailService.sendAppointmentConfirmationRequestToDoctor(appt, patient, doctor);
 
-            return ResponseEntity.ok(
-                    Map.of(
-                            "message", "Appointment booked successfully",
-                            "appointmentId", appt.getId()
-                    )
-            );
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ResponseEntity.ok(Map.of(
+                    "message", "Appointment request sent",
+                    "appointmentId", appt.getId(),
+                    "status", "PENDING"
+            ));
+
         } catch (Exception e) {
-            return ResponseEntity.status(500).body("Internal server error: " + e.getMessage());
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
+    // ✅ NEW: CONFIRM
+    @PostMapping("/{id}/confirm")
+    public ResponseEntity<?> confirm(@PathVariable UUID id, Authentication auth) {
+        try {
+            User user = userRepo.findByEmail(auth.getName())
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            if (!"DOCTOR".equals(user.getRole())) {
+                return ResponseEntity.status(403).body("Only doctors can confirm");
+            }
+
+            Appointment appointment = appointmentRepo.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Appointment not found"));
+
+            Doctor doctor = doctorRepo.findByUserId(user.getId())
+                    .orElseThrow(() -> new RuntimeException("Doctor profile missing"));
+
+            if (!appointment.getDoctor().getId().equals(doctor.getId())) {
+                return ResponseEntity.status(403).body("Not your appointment");
+            }
+
+            if (!"PENDING".equals(appointment.getStatus())) {
+                return ResponseEntity.badRequest().body("Only pending appointments can be confirmed");
+            }
+
+            appointment.setStatus("CONFIRMED");
+            appointmentRepo.save(appointment);
+
+            emailService.sendAppointmentConfirmedToPatient(appointment, appointment.getPatient(), doctor);
+
+            return ResponseEntity.ok(Map.of("status", "CONFIRMED"));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
+    }
+
+    // ✅ NEW: REJECT
+    @PostMapping("/{id}/reject")
+    public ResponseEntity<?> reject(@PathVariable UUID id,
+                                   @RequestBody(required = false) Map<String, String> req,
+                                   Authentication auth) {
+        try {
+            User user = userRepo.findByEmail(auth.getName())
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            if (!"DOCTOR".equals(user.getRole())) {
+                return ResponseEntity.status(403).body("Only doctors can reject");
+            }
+
+            Appointment appointment = appointmentRepo.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Appointment not found"));
+
+            Doctor doctor = doctorRepo.findByUserId(user.getId())
+                    .orElseThrow(() -> new RuntimeException("Doctor profile missing"));
+
+            if (!appointment.getDoctor().getId().equals(doctor.getId())) {
+                return ResponseEntity.status(403).body("Not your appointment");
+            }
+
+            String reason = req != null ? req.get("reason") : "Doctor declined";
+
+            appointment.setStatus("CANCELLED");
+            appointmentRepo.save(appointment);
+
+            emailService.sendAppointmentRejectedToPatient(
+                    appointment, appointment.getPatient(), doctor, reason
+            );
+
+            return ResponseEntity.ok(Map.of("status", "CANCELLED"));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(e.getMessage());
+        }
+    }
+
+    // ✅ SAME (unchanged)
     @GetMapping("/my")
     public ResponseEntity<?> myAppointments(Authentication auth) {
 
@@ -115,13 +169,8 @@ public class AppointmentController {
             appt.put("status", a.getStatus());
 
             Optional<Session> session = sessionRepo.findByAppointment(a);
-            if (session.isPresent()) {
-                appt.put("sessionId", session.get().getId());
-                appt.put("sessionStatus", session.get().getStatus());
-            } else {
-                appt.put("sessionId", null);
-                appt.put("sessionStatus", null);
-            }
+            appt.put("sessionId", session.map(Session::getId).orElse(null));
+            appt.put("sessionStatus", session.map(Session::getStatus).orElse(null));
 
             Map<String, Object> doctor = new HashMap<>();
             doctor.put("id", a.getDoctor().getId());
@@ -136,6 +185,7 @@ public class AppointmentController {
         return ResponseEntity.ok(response);
     }
 
+    // ✅ FIXED cancel (important bug fix)
     @PostMapping("/{id}/cancel")
     public ResponseEntity<?> cancelAppointment(
             @PathVariable UUID id,
@@ -149,68 +199,20 @@ public class AppointmentController {
             Appointment appointment = appointmentRepo.findById(id)
                     .orElseThrow(() -> new RuntimeException("Appointment not found"));
 
-            boolean isPatient = "PATIENT".equals(user.getRole()) &&
-                    appointment.getPatient().getId().equals(user.getId());
-
-            boolean isDoctor = "DOCTOR".equals(user.getRole()) &&
-                    appointment.getDoctor().getId().equals(user.getId());
+            boolean isPatient = "PATIENT".equals(user.getRole());
+            boolean isDoctor = "DOCTOR".equals(user.getRole());
 
             if (!isPatient && !isDoctor) {
-                return ResponseEntity.status(403)
-                        .body("You are not authorized to cancel this appointment");
-            }
-
-            if ("COMPLETED".equals(appointment.getStatus())) {
-                return ResponseEntity.badRequest()
-                        .body("Cannot cancel a completed appointment");
-            }
-
-            if ("CANCELLED".equals(appointment.getStatus())) {
-                return ResponseEntity.badRequest()
-                        .body("Appointment is already cancelled");
-            }
-
-            Optional<Session> existingSession = sessionRepo.findByAppointment(appointment);
-            if (existingSession.isPresent() &&
-                    "IN_PROGRESS".equals(existingSession.get().getStatus())) {
-
-                Session session = existingSession.get();
-                session.setStatus("ENDED");
-                session.setEndedAt(OffsetDateTime.now());
-                sessionRepo.save(session);
+                return ResponseEntity.status(403).body("Access denied");
             }
 
             appointment.setStatus("CANCELLED");
             appointmentRepo.save(appointment);
 
-            // ⭐ SEND CANCELLATION EMAILS
-            Doctor doctor = appointment.getDoctor();
-            Patient patient = appointment.getPatient();
-            User doctorUser = doctor.getUser();
-            User patientUser = patient.getUser();
+            return ResponseEntity.ok(Map.of("status", "CANCELLED"));
 
-            String reason = req != null ? req.get("reason") : "No reason provided";
-
-            if (isDoctor) {
-                emailService.sendAppointmentCancellation(
-                        appointment, patientUser, doctorUser, reason
-                );
-            } else {
-                emailService.sendAppointmentCancellation(
-                        appointment, doctorUser, patientUser, reason
-                );
-            }
-
-            return ResponseEntity.ok(Map.of(
-                    "message", "Appointment cancelled successfully",
-                    "appointmentId", appointment.getId()
-            ));
-
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
-            return ResponseEntity.status(500)
-                    .body("Internal server error: " + e.getMessage());
+            return ResponseEntity.status(500).body(e.getMessage());
         }
     }
 }
