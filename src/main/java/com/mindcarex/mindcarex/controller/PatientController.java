@@ -3,14 +3,23 @@ package com.mindcarex.mindcarex.controller;
 import com.mindcarex.mindcarex.entity.Appointment;
 import com.mindcarex.mindcarex.entity.Doctor;
 import com.mindcarex.mindcarex.entity.Patient;
+import com.mindcarex.mindcarex.entity.Session;
 import com.mindcarex.mindcarex.entity.User;
-import com.mindcarex.mindcarex.repository.*;
+import com.mindcarex.mindcarex.repository.AppointmentRepository;
+import com.mindcarex.mindcarex.repository.DoctorRepository;
+import com.mindcarex.mindcarex.repository.PatientRepository;
+import com.mindcarex.mindcarex.repository.SessionRepository;
+import com.mindcarex.mindcarex.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/patient")
