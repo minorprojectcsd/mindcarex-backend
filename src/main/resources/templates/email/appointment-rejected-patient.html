@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <h2 style="color: #ef4444;">Appointment Request Declined</h2>
+    
+    <p>Dear <strong th:text="${patientName}">Patient</strong>,</p>
+    
+    <p>Unfortunately, Dr. <strong th:text="${doctorName}">Doctor</strong> was unable to accept your appointment request for <span th:text="${appointmentDate}">date</span>.</p>
+    
+    <div style="background: #fee2e2; padding: 15px; border-radius: 8px; margin: 20px 0;">
+        <p><strong>Reason:</strong> <span th:text="${reason}">Doctor unavailable</span></p>
+    </div>
+    
+    <p><strong>What can you do?</strong></p>
+    <ul>
+        <li>Try booking a different time slot</li>
+        <li>Choose another available doctor</li>
+        <li>Contact support if you need assistance</li>
+    </ul>
+    
+    <p>We apologize for any inconvenience.</p>
+    
+    <p>Best regards,<br>MindCareX Team</p>
+</body>
+</html>
