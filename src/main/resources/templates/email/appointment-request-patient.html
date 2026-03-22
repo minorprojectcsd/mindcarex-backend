@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <h2 style="color: #2563eb;">Appointment Request Sent</h2>
+    
+    <p>Dear <strong th:text="${patientName}">Patient</strong>,</p>
+    
+    <p>Your appointment request has been sent to <strong th:text="${doctorName}">Doctor</strong>.</p>
+    
+    <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+        <p><strong>Doctor:</strong> <span th:text="${doctorName}">Doctor</span></p>
+        <p><strong>Specialization:</strong> <span th:text="${specialization}">Psychiatry</span></p>
+        <p><strong>Requested Date:</strong> <span th:text="${appointmentDate}">Date</span></p>
+        <p><strong>Status:</strong> <span style="color: #f59e0b;" th:text="${status}">PENDING</span></p>
+    </div>
+    
+    <p>We'll notify you once the doctor confirms your appointment.</p>
+    
+    <p>Best regards,<br>MindCareX Team</p>
+</body>
+</html>
