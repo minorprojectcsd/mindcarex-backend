@@ -27,14 +27,26 @@ public class SessionController {
     private final UserRepository userRepo;
     private final DoctorRepository doctorRepo;
     private final PatientRepository patientRepo;
-    private final ChatMessageRepository chatMessageRepo;
     private final EmailService emailService;
 
     @Value("${REPORT_API_URL:https://mindcarex-report-api.onrender.com}")
     private String reportApiUrl;
 
     // ─────────────────────────────────────────────
-    // START SESSION (Doctor only)
+    // DTO (SAFE RESPONSE)
+    // ─────────────────────────────────────────────
+    public record SessionResponse(
+            UUID sessionId,
+            String status,
+            UUID appointmentId,
+            UUID doctorUserId,
+            UUID patientUserId,
+            OffsetDateTime startedAt,
+            OffsetDateTime endedAt
+    ) {}
+
+    // ─────────────────────────────────────────────
+    // START SESSION
     // ─────────────────────────────────────────────
     @PostMapping("/{appointmentId}/start")
     public ResponseEntity<?> startSession(
@@ -42,7 +54,7 @@ public class SessionController {
             Authentication auth
     ) {
         try {
-            if (auth == null) {
+            if (auth == null || auth.getName() == null) {
                 return ResponseEntity.status(401).body("Unauthorized");
             }
 
@@ -89,7 +101,7 @@ public class SessionController {
     }
 
     // ─────────────────────────────────────────────
-    // GET SESSION (Doctor / Patient)
+    // GET SESSION (SAFE - NO ENTITY RETURN)
     // ─────────────────────────────────────────────
     @GetMapping("/{sessionId}")
     public ResponseEntity<?> getSession(
@@ -97,7 +109,7 @@ public class SessionController {
             Authentication auth
     ) {
         try {
-            if (auth == null) {
+            if (auth == null || auth.getName() == null) {
                 return ResponseEntity.status(401).body("Unauthorized");
             }
 
@@ -108,8 +120,16 @@ public class SessionController {
                     .orElseThrow(() -> new RuntimeException("Session not found"));
 
             Appointment appointment = session.getAppointment();
+            if (appointment == null) {
+                return ResponseEntity.status(500).body("Appointment missing");
+            }
+
             Doctor doctor = appointment.getDoctor();
             Patient patient = appointment.getPatient();
+
+            if (doctor == null || patient == null) {
+                return ResponseEntity.status(500).body("Doctor or Patient missing");
+            }
 
             UUID doctorUserId = doctor.getUser().getId();
             UUID patientUserId = patient.getUser().getId();
@@ -119,7 +139,18 @@ public class SessionController {
                 return ResponseEntity.status(403).body("Not authorized");
             }
 
-            return ResponseEntity.ok(session);
+            // ✅ SAFE DTO RESPONSE
+            SessionResponse response = new SessionResponse(
+                    session.getId(),
+                    session.getStatus(),
+                    appointment.getId(),
+                    doctorUserId,
+                    patientUserId,
+                    session.getStartedAt(),
+                    session.getEndedAt()
+            );
+
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -128,7 +159,7 @@ public class SessionController {
     }
 
     // ─────────────────────────────────────────────
-    // END SESSION (Doctor only)
+    // END SESSION
     // ─────────────────────────────────────────────
     @PostMapping("/{sessionId}/end")
     public ResponseEntity<?> endSession(
@@ -137,7 +168,7 @@ public class SessionController {
             Authentication auth
     ) {
         try {
-            if (auth == null) {
+            if (auth == null || auth.getName() == null) {
                 return ResponseEntity.status(401).body("Unauthorized");
             }
 
@@ -198,7 +229,7 @@ public class SessionController {
     }
 
     // ─────────────────────────────────────────────
-    // Fetch AI Guardian Message
+    // FETCH GUARDIAN MESSAGE
     // ─────────────────────────────────────────────
     private String fetchGuardianMessage(UUID sessionId) {
         try {
@@ -214,7 +245,7 @@ public class SessionController {
             return (String) data.get("guardian_message");
 
         } catch (Exception e) {
-            return null; // fail silently
+            return null;
         }
     }
 }
