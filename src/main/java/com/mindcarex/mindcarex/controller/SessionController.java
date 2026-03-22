@@ -89,21 +89,75 @@ public class SessionController {
         return ResponseEntity.ok(session);
     }
 
-    @GetMapping("/{sessionId}/chat")
-    public ResponseEntity<?> getChatHistory(
+    @GetMapping("/{sessionId}")
+    public ResponseEntity<?> getSession(
             @PathVariable UUID sessionId,
             Authentication auth
     ) {
-        Session session = sessionRepo.findById(sessionId)
-                .orElseThrow(() -> new RuntimeException("Session not found"));
-
-        if (!isSessionParticipant(session, auth)) {
-            return ResponseEntity.status(403).body("Not authorized");
+        try {
+            System.out.println("=== SESSION DEBUG START ===");
+            System.out.println("Session ID requested: " + sessionId);
+            System.out.println("User email from auth: " + auth.getName());
+            
+            // Get user
+            User user = userRepo.findByEmail(auth.getName())
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+            System.out.println("User found - ID: " + user.getId() + ", Role: " + user.getRole());
+            
+            // Get session
+            Session session = sessionRepo.findById(sessionId)
+                    .orElseThrow(() -> new RuntimeException("Session not found"));
+            System.out.println("Session found - ID: " + session.getId());
+            
+            // Get appointment
+            Appointment appointment = session.getAppointment();
+            System.out.println("Appointment ID: " + appointment.getId());
+            
+            // Get doctor and patient
+            Doctor doctor = appointment.getDoctor();
+            Patient patient = appointment.getPatient();
+            
+            System.out.println("Doctor profile ID: " + doctor.getId());
+            System.out.println("Patient profile ID: " + patient.getId());
+            
+            // Get user IDs
+            UUID doctorUserId = doctor.getUser().getId();
+            UUID patientUserId = patient.getUser().getId();
+            
+            System.out.println("Doctor USER ID: " + doctorUserId);
+            System.out.println("Patient USER ID: " + patientUserId);
+            System.out.println("Current user ID: " + user.getId());
+            
+            boolean isDoctorMatch = user.getId().equals(doctorUserId);
+            boolean isPatientMatch = user.getId().equals(patientUserId);
+            
+            System.out.println("Is doctor? " + isDoctorMatch);
+            System.out.println("Is patient? " + isPatientMatch);
+            
+            if (!isDoctorMatch && !isPatientMatch) {
+                System.out.println("❌ ACCESS DENIED - User is neither doctor nor patient");
+                System.out.println("=== SESSION DEBUG END ===");
+                return ResponseEntity.status(403).body(Map.of(
+                    "error", "Not authorized",
+                    "debug", Map.of(
+                        "userId", user.getId().toString(),
+                        "doctorUserId", doctorUserId.toString(),
+                        "patientUserId", patientUserId.toString()
+                    )
+                ));
+            }
+            
+            System.out.println("✅ ACCESS GRANTED");
+            System.out.println("=== SESSION DEBUG END ===");
+            
+            return ResponseEntity.ok(session);
+            
+        } catch (Exception e) {
+            System.out.println("❌ EXCEPTION: " + e.getMessage());
+            e.printStackTrace();
+            System.out.println("=== SESSION DEBUG END ===");
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
-
-        var messages = chatMessageRepo.findBySessionIdOrderByTimestampAsc(sessionId);
-
-        return ResponseEntity.ok(messages);
     }
 
     @PostMapping("/{sessionId}/end")
